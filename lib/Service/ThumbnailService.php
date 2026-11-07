@@ -14,7 +14,11 @@ use OCP\Files\Folder;
 use OCP\ILogger;
 
 /**
- * Makes the small and tiny thumbnails for indexed photos.
+ * Makes the small and tiny thumbnails for indexed photos and videos.
+ *
+ * Videos: with ffmpeg on the server a frame is taken here; without it the
+ * video waits (state "from playback") until a user plays it in the timeline
+ * and the browser sends the first frame it showed.
  */
 class ThumbnailService {
 	/** @var MediaMapper */
@@ -30,9 +34,13 @@ class ThumbnailService {
 
 	/** @var ViewCache */
 	private $views;
+	/** @var VideoFrames */
+	private $frames;
 
-	public function __construct(MediaMapper $mapper, ThumbnailStore $store, ImageProcessor $processor, ILogger $logger, ViewCache $views) {
+	public function __construct(MediaMapper $mapper, ThumbnailStore $store, ImageProcessor $processor, ILogger $logger,
+								ViewCache $views, VideoFrames $frames) {
 		$this->views = $views;
+		$this->frames = $frames;
 		$this->mapper = $mapper;
 		$this->store = $store;
 		$this->processor = $processor;
@@ -87,6 +95,7 @@ class ThumbnailService {
 
 	private function backlog(string $userId, Folder $userFolder, ?array $prefixes, float $deadline, ?callable $progress, array &$out): array {
 		$this->mapper->failStuckThumbs($userId);
+		$this->mapper->switchVideoStates($userId, $this->frames->available());
 		while (\microtime(true) < $deadline) {
 			$rows = $this->mapper->findPendingThumbs($userId, $prefixes, 50);
 			if (!$rows) {
@@ -116,7 +125,13 @@ class ThumbnailService {
 	 */
 	public function generate(string $userId, Folder $userFolder, array $row): bool {
 		$fileId = (int)$row['file_id'];
+		$video = (int)$row['kind'] === MediaMapper::KIND_VIDEO;
+		if ($video && !$this->frames->available()) {
+			$this->mapper->setThumbState($userId, $fileId, MediaMapper::THUMB_FROM_PLAYBACK);
+			return false;
+		}
 		$this->mapper->setThumbState($userId, $fileId, MediaMapper::THUMB_WORKING);
+		$frame = null;
 		try {
 			$nodes = $userFolder->getById($fileId, true);
 			$node = $nodes[0] ?? null;
@@ -127,15 +142,51 @@ class ThumbnailService {
 			if (!\is_string($local) || !\is_file($local)) {
 				throw new \RuntimeException('No local copy');
 			}
-			$t = $this->processor->makeThumbs($local, (string)$node->getMimetype());
-			$this->store->write($userId, $fileId, ThumbnailStore::SIZE_SMALL, $t['s']);
-			$this->store->write($userId, $fileId, ThumbnailStore::SIZE_TINY, $t['t']);
-			$this->mapper->setThumbState($userId, $fileId, MediaMapper::THUMB_READY, $t['color']);
+			if ($video) {
+				$frame = $this->frames->frame($local, (int)($row['duration'] ?? 0));
+				if ($frame === null) {
+					throw new \RuntimeException('ffmpeg could not read a frame');
+				}
+				$t = $this->processor->makeThumbs($frame, 'image/jpeg');
+			} else {
+				$t = $this->processor->makeThumbs($local, (string)$node->getMimetype());
+			}
+			$this->save($userId, $fileId, $t);
 			return true;
 		} catch (\Throwable $e) {
-			$this->mapper->setThumbState($userId, $fileId, MediaMapper::THUMB_FAILED);
+			// a video ffmpeg cannot read may still get a frame from a browser
+			$this->mapper->setThumbState($userId, $fileId, $video ? MediaMapper::THUMB_FROM_PLAYBACK : MediaMapper::THUMB_FAILED);
 			$this->logger->info('Photos Timeline: no thumbnail for file ' . $fileId . ': ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return false;
+		} finally {
+			if ($frame !== null) {
+				@\unlink($frame);
+			}
 		}
+	}
+
+	/**
+	 * Stores a video frame sent by the user's browser (already checked to be a
+	 * small JPEG, PNG or WebP). It is decoded and encoded again, never stored as sent.
+	 */
+	public function fromPlayback(string $userId, int $fileId, string $imagePath, string $mime): bool {
+		try {
+			$this->save($userId, $fileId, $this->processor->makeThumbs($imagePath, $mime));
+			$this->views->bump($userId);
+			return true;
+		} catch (\Throwable $e) {
+			$this->logger->info('Photos Timeline: frame for video ' . $fileId . ' not usable: ' . $e->getMessage(), ['app' => Application::APP_ID]);
+			return false;
+		}
+	}
+
+	private function save(string $userId, int $fileId, array $t): void {
+		$this->store->write($userId, $fileId, ThumbnailStore::SIZE_SMALL, $t['s']);
+		$this->store->write($userId, $fileId, ThumbnailStore::SIZE_TINY, $t['t']);
+		$this->mapper->setThumbState($userId, $fileId, MediaMapper::THUMB_READY, $t['color']);
+	}
+
+	public function ffmpegAvailable(): bool {
+		return $this->frames->available();
 	}
 }

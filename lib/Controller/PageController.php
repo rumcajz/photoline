@@ -11,6 +11,8 @@ use OCA\PhotosTimeline\Service\SettingsService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\Files\IRootFolder;
+use OCP\IConfig;
+use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
 
@@ -21,10 +23,16 @@ class PageController extends Controller {
 	private $rootFolder;
 	/** @var SettingsService */
 	private $settings;
+	/** @var IGroupManager */
+	private $groupManager;
+	/** @var IConfig */
+	private $config;
 
 	public function __construct(string $AppName, IRequest $request, IUserSession $userSession,
-								IRootFolder $rootFolder, SettingsService $settings) {
+								IRootFolder $rootFolder, SettingsService $settings, IGroupManager $groupManager, IConfig $config) {
 		parent::__construct($AppName, $request);
+		$this->groupManager = $groupManager;
+		$this->config = $config;
 		$this->userSession = $userSession;
 		$this->rootFolder = $rootFolder;
 		$this->settings = $settings;
@@ -39,8 +47,12 @@ class PageController extends Controller {
 	 */
 	public function index(): TemplateResponse {
 		$settings = null;
+		$cronWarning = false;
 		$user = $this->userSession->getUser();
 		if ($user !== null) {
+			// admins are told when background jobs are not run by cron (thumbnails would be slow)
+			$cronWarning = $this->groupManager->isAdmin($user->getUID())
+				&& $this->config->getAppValue('core', 'backgroundjobs_mode', 'ajax') !== 'cron';
 			try {
 				$settings = $this->settings->get($user->getUID(), $this->rootFolder->getUserFolder($user->getUID()));
 			} catch (\Throwable $e) {
@@ -49,6 +61,7 @@ class PageController extends Controller {
 		}
 		return new TemplateResponse($this->appName, 'main', [
 			'settings' => \json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+			'cronWarning' => $cronWarning,
 		]);
 	}
 }

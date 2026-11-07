@@ -9,7 +9,7 @@
 script('photos_timeline', 'timeline');
 style('photos_timeline', 'timeline');
 ?>
-<div id="app" class="ptl-app" data-settings="<?php p($_['settings']); ?>">
+<div id="app" class="ptl-app" data-settings="<?php p($_['settings']); ?>"<?php if ($_['cronWarning']) { ?> data-cron-warning="1"<?php } ?>>
 	<div id="app-content" class="ptl-content">
 		<header class="ptl-toolbar" role="toolbar" aria-label="<?php p($l->t('Timeline controls')); ?>">
 			<nav class="ptl-crumbs" aria-label="<?php p($l->t('Location')); ?>"></nav>

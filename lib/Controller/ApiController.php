@@ -35,6 +35,8 @@ class ApiController extends Controller {
 	private const ON_DEMAND_SECONDS = 2.5;
 	private const LARGE_EDGE = 2048;
 	private const LONG_CACHE = 'private, max-age=31536000, immutable';
+	private const MAX_FRAME_BYTES = 3 * 1024 * 1024;
+	private const MAX_FRAME_EDGE = 4096;
 
 	/** @var IUserSession */
 	private $userSession;
@@ -157,7 +159,7 @@ class ApiController extends Controller {
 
 	/**
 	 * A pack of thumbnails: "PTL1", uint32 header length, JSON header
-	 * [[fileId, byteLength], ...], then the WebP images back to back.
+	 * [[fileId, byteLength, thumbState], ...], then the WebP images back to back.
 	 * Ids that are not the user's are left out; length 0 means "not available".
 	 *
 	 * @NoAdminRequired
@@ -181,14 +183,18 @@ class ApiController extends Controller {
 			}
 			$state = (int)$row['thumb_state'];
 			$data = $state === MediaMapper::THUMB_READY ? $this->store->read($uid, $fileId, $size) : null;
-			if ($data === null && $state !== MediaMapper::THUMB_FAILED && (int)$row['kind'] === MediaMapper::KIND_PHOTO) {
+			if ($data === null && \in_array($state, [MediaMapper::THUMB_PENDING, MediaMapper::THUMB_READY], true)) {
 				if (\microtime(true) < $deadline && $this->thumbs->generate($uid, $userFolder, $row)) {
 					$data = $this->store->read($uid, $fileId, $size);
+					$state = MediaMapper::THUMB_READY;
 				} else {
-					$complete = false;
+					$state = (int)($this->mapper->findByIds($uid, [$fileId])[$fileId]['thumb_state'] ?? $state);
 				}
 			}
-			$header[] = [$fileId, $data === null ? 0 : \strlen($data)];
+			if ($data === null && $state !== MediaMapper::THUMB_FAILED && $state !== MediaMapper::THUMB_FROM_PLAYBACK) {
+				$complete = false;
+			}
+			$header[] = [$fileId, $data === null ? 0 : \strlen($data), $state];
 			$body .= $data ?? '';
 		}
 		$json = \json_encode($header);
@@ -233,6 +239,59 @@ class ApiController extends Controller {
 		]);
 		$resp->addHeader('Cache-Control', self::LONG_CACHE);
 		return $resp;
+	}
+
+	/**
+	 * The first frame a user's browser showed when the user played a video, used
+	 * as the video's thumbnail when the server has no ffmpeg. Accepted only for
+	 * the user's own readable video that has no thumbnail yet, and only as a
+	 * small JPEG, PNG or WebP image, which is decoded and encoded again.
+	 *
+	 * @NoAdminRequired
+	 */
+	public function videoFrame(int $fileId): Response {
+		[$uid, $userFolder] = $this->current();
+		$row = $this->mapper->findByIds($uid, [$fileId])[$fileId] ?? null;
+		if ($row === null || (int)$row['kind'] !== MediaMapper::KIND_VIDEO || !$this->canRead($userFolder, $fileId)) {
+			return $this->notFound();
+		}
+		$state = (int)$row['thumb_state'];
+		if ($state === MediaMapper::THUMB_READY || $state === MediaMapper::THUMB_WORKING) {
+			return $this->status(Http::STATUS_CONFLICT);
+		}
+		$data = $this->readBody(self::MAX_FRAME_BYTES);
+		$info = $data === null ? false : @\getimagesizefromstring($data);
+		$mimes = [IMAGETYPE_JPEG => 'image/jpeg', IMAGETYPE_PNG => 'image/png', IMAGETYPE_WEBP => 'image/webp'];
+		if (!\is_array($info) || !isset($mimes[$info[2]])
+			|| $info[0] < 16 || $info[1] < 16 || $info[0] > self::MAX_FRAME_EDGE || $info[1] > self::MAX_FRAME_EDGE) {
+			return $this->status(Http::STATUS_BAD_REQUEST);
+		}
+		$tmp = \tempnam(\sys_get_temp_dir(), 'ptl-upframe-');
+		if ($tmp === false || \file_put_contents($tmp, $data) !== \strlen($data)) {
+			if ($tmp !== false) {
+				@\unlink($tmp);
+			}
+			return $this->status(Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+		try {
+			$ok = $this->thumbs->fromPlayback($uid, $fileId, $tmp, $mimes[$info[2]]);
+		} finally {
+			@\unlink($tmp);
+		}
+		return $ok ? $this->json(['state' => MediaMapper::THUMB_READY]) : $this->status(Http::STATUS_BAD_REQUEST);
+	}
+
+	/**
+	 * The raw request body, or null when it is larger than $max bytes.
+	 */
+	protected function readBody(int $max): ?string {
+		$in = @\fopen('php://input', 'rb');
+		if ($in === false) {
+			return null;
+		}
+		$data = \stream_get_contents($in, $max + 1);
+		\fclose($in);
+		return \is_string($data) && $data !== '' && \strlen($data) <= $max ? $data : null;
 	}
 
 	/**
@@ -423,8 +482,12 @@ class ApiController extends Controller {
 	}
 
 	private function notFound(): Response {
+		return $this->status(Http::STATUS_NOT_FOUND);
+	}
+
+	private function status(int $code): Response {
 		$r = new Response();
-		$r->setStatus(Http::STATUS_NOT_FOUND);
+		$r->setStatus($code);
 		return $r;
 	}
 }

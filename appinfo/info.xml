@@ -13,13 +13,14 @@ Photos Timeline shows the photos and videos of any folder, or of a set of folder
 - Year and month scrubber, filters for photos or videos and for a date range
 - Full-screen view with keyboard and swipe navigation
 - Thumbnails are prepared in the background, so browsing never waits for image processing
+- Video thumbnails made with ffmpeg when the server has it, otherwise from the first frame shown when a video is played
 - View only: the app never changes, uploads or shares files
 
 Thumbnails are built by ownCloud's background jobs (cron mode recommended). The first run on a large library can take a while; `occ photos-timeline:thumbnails` can be used to run it manually.
 	</description>
 	<licence>AGPL</licence>
 	<author>Photos Timeline contributors</author>
-	<version>1.0.1</version>
+	<version>1.1.6</version>
 	<namespace>PhotosTimeline</namespace>
 	<category>multimedia</category>
 	<use-migrations>true</use-migrations>
@@ -34,6 +35,11 @@ Thumbnails are built by ownCloud's background jobs (cron mode recommended). The 
 		<order>3</order>
 		<route>photos_timeline.page.index</route>
 	</navigation>
+	<repair-steps>
+		<uninstall>
+			<step>OCA\PhotosTimeline\Repair\RemoveBackgroundJob</step>
+		</uninstall>
+	</repair-steps>
 	<background-jobs>
 		<job>OCA\PhotosTimeline\BackgroundJob\TimelineJob</job>
 	</background-jobs>

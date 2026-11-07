@@ -531,6 +531,11 @@
 		return node;
 	}
 
+	/** 2: no thumbnail possible; 4: a video waiting for its first playback. */
+	function noThumb(it) {
+		return it[F.thumb] === 2 || it[F.thumb] === 4;
+	}
+
 	function buildTile(it, cell) {
 		var b = el('button', 'ptl-tile');
 		b.type = 'button';
@@ -550,7 +555,7 @@
 			img.src = url;
 			b.appendChild(img);
 			b.classList.add(Thumbs.isSmall(it) ? 'ptl-loaded' : 'ptl-tiny');
-		} else if (it[F.thumb] === 2) {
+		} else if (noThumb(it)) {
 			b.classList.add(video ? 'ptl-video-tile' : 'ptl-broken');
 		}
 		if (video) {
@@ -573,11 +578,12 @@
 				var it = S.items[Number(tile.dataset.idx)];
 				var url = Thumbs.urlFor(it);
 				if (!url) {
-					if (it[F.thumb] === 2 || Thumbs.isBroken(it)) {
+					if (noThumb(it) || Thumbs.isBroken(it)) {
 						tile.classList.add(it[F.kind] === 2 ? 'ptl-video-tile' : 'ptl-broken');
 					}
 					return;
 				}
+				tile.classList.remove('ptl-video-tile', 'ptl-broken');
 				var img = tile.querySelector('img');
 				if (!img) {
 					img = el('img');
@@ -719,7 +725,7 @@
 		}
 
 		function needs(size, it) {
-			if (it[F.thumb] === 2 || broken.has(it[F.id])) {
+			if (noThumb(it) || broken.has(it[F.id])) {
 				return false;
 			}
 			var map = size === 's' ? small : tiny;
@@ -840,6 +846,9 @@
 						var id = h[0];
 						var len = h[1];
 						var it = byId.get(id);
+						if (it && h.length > 2 && (len > 0 || h[2] !== 0)) {
+							it[F.thumb] = h[2]; // the server's current state
+						}
 						returned.add(id);
 						if (!it) {
 							off += len;
@@ -854,6 +863,8 @@
 							retryAt.delete(id);
 						} else if (it[F.thumb] === 1) {
 							broken.add(id);
+						} else if (noThumb(it)) {
+							retryAt.delete(id);
 						} else {
 							// Not made yet: try again a little later.
 							retryAt.set(id, Date.now() + 15000);
@@ -885,6 +896,13 @@
 			});
 		}
 
+		/** A thumbnail was just made for this item (e.g. from playback): fetch it. */
+		function invalidate(it) {
+			broken.delete(it[F.id]);
+			retryAt.delete(it[F.id]);
+			schedule();
+		}
+
 		function reset() {
 			pending.clear();
 			retryAt.clear();
@@ -907,6 +925,7 @@
 			urlFor: urlFor,
 			isSmall: isSmall,
 			isBroken: isBroken,
+			invalidate: invalidate,
 			schedule: schedule,
 			reset: reset,
 			clearCache: clearCache,
@@ -1033,6 +1052,55 @@
 
 	// ---------------------------------------------------------- full screen
 
+	/**
+	 * When the server has no ffmpeg, a video's thumbnail is the first frame the
+	 * browser shows when the user presses play. It is sent once; the server
+	 * checks and re-encodes it, and accepts it only for the user's own video.
+	 */
+	function rememberFirstFrame(v, it) {
+		var sent = false;
+		function grab() {
+			if (sent || !v.videoWidth || !v.videoHeight) {
+				return;
+			}
+			sent = true;
+			var scale = Math.min(1, 640 / v.videoHeight, 1280 / v.videoWidth);
+			var c = document.createElement('canvas');
+			c.width = Math.max(16, Math.round(v.videoWidth * scale));
+			c.height = Math.max(16, Math.round(v.videoHeight * scale));
+			try {
+				c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+			} catch (e) {
+				return;
+			}
+			c.toBlob(function (blob) {
+				if (!blob) {
+					return;
+				}
+				request(api('videoframe/' + it[F.id]), {
+					method: 'POST',
+					body: blob,
+					headers: { 'Content-Type': 'image/jpeg' },
+				}).then(function () {
+					it[F.thumb] = 1;
+					Thumbs.invalidate(it);
+				}).catch(function () {
+					// already has one, or the frame was not usable: nothing to do
+				});
+			}, 'image/jpeg', 0.9);
+		}
+		v.addEventListener('playing', function onPlay() {
+			v.removeEventListener('playing', onPlay);
+			if (v.readyState >= 2) {
+				grab(); // the frame on screen right now: the first one
+			} else if (v.requestVideoFrameCallback) {
+				v.requestVideoFrameCallback(grab);
+			} else {
+				setTimeout(grab, 100);
+			}
+		});
+	}
+
 	var Viewer = (function () {
 		var box = null;
 		var idx = -1;
@@ -1066,9 +1134,16 @@
 			box.querySelector('.ptl-v-next').addEventListener('click', function () {
 				go(1);
 			});
+			// Capture phase: a focused video player would otherwise swallow Escape.
+			box.addEventListener('keydown', function (e) {
+				if (e.key === 'Escape' && !document.fullscreenElement) {
+					e.preventDefault();
+					hide();
+				}
+			}, true);
 			box.addEventListener('keydown', function (e) {
 				if (e.key === 'Escape') {
-					hide();
+					return; // handled above
 				} else if (e.key === 'ArrowLeft') {
 					go(-1);
 				} else if (e.key === 'ArrowRight') {
@@ -1161,6 +1236,10 @@
 			var it = S.items[i];
 			var stage = box.querySelector('.ptl-v-stage');
 			stage.textContent = '';
+			if (!box.contains(document.activeElement)) {
+				// the focused video was just removed: keep the keys working in the viewer
+				box.querySelector('.ptl-v-close').focus({ preventScroll: true });
+			}
 			var path = itemPath(it);
 			var mime = S.data.mimes[it[F.mime]];
 			if (it[F.kind] === 2) {
@@ -1171,6 +1250,23 @@
 					v.playsInline = true;
 					v.src = davUrl(path);
 					stage.appendChild(v);
+					// Chrome's own player buttons keep every key (and click) once used,
+					// so Escape would no longer close the viewer. Media events still
+					// fire: after each one, focus goes back to the video element itself.
+					var refocus = function () {
+						if (document.activeElement === v && !document.fullscreenElement) {
+							setTimeout(function () {
+								v.blur();
+								v.focus({ preventScroll: true });
+							}, 0);
+						}
+					};
+					['play', 'pause', 'seeked', 'volumechange', 'ratechange'].forEach(function (name) {
+						v.addEventListener(name, refocus);
+					});
+					if (it[F.thumb] !== 1) {
+						rememberFirstFrame(v, it);
+					}
 				} else {
 					var p = el('div', 'ptl-v-noplay');
 					p.appendChild(el('p', '', tr('This video format cannot be played in the browser.')));
@@ -1498,6 +1594,9 @@
 		renderFilters();
 		writeUrl();
 		load();
+		if (E.root.getAttribute('data-cron-warning') && window.OC && OC.Notification) {
+			OC.Notification.showTemporary(tr('Photos Timeline: background jobs are not set to "Cron" (Admin settings). Thumbnails will be made slowly.'), { timeout: 12 });
+		}
 	}
 
 	if (document.readyState === 'loading') {

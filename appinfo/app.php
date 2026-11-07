@@ -6,5 +6,6 @@
  */
 
 $app = new \OCA\PhotosTimeline\AppInfo\Application();
+$app->ensureBackgroundJob();
 $app->registerFilesIntegration();
 $app->registerUserCleanup();

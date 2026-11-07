@@ -24,6 +24,8 @@ class MediaMapper {
 	public const THUMB_READY = 1;
 	public const THUMB_FAILED = 2;
 	public const THUMB_WORKING = 3;
+	/** A video without ffmpeg on the server: waits for a frame from a browser that plays it. */
+	public const THUMB_FROM_PLAYBACK = 4;
 
 	/** @var IDBConnection */
 	private $db;
@@ -188,7 +190,7 @@ class MediaMapper {
 	 */
 	public function findPendingThumbs(string $userId, ?array $prefixes, int $limit): array {
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('id', 'file_id', 'etag', 'path', 'mime', 'kind', 'thumb_state')
+		$qb->select('id', 'file_id', 'etag', 'path', 'mime', 'kind', 'duration', 'thumb_state')
 			->from(self::TABLE)
 			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
 			->andWhere($qb->expr()->eq('thumb_state', $qb->createNamedParameter(self::THUMB_PENDING, IQueryBuilder::PARAM_INT)))
@@ -247,6 +249,22 @@ class MediaMapper {
 	/**
 	 * @return array{total:int, photos:int, videos:int, ready:int, pending:int, failed:int}
 	 */
+	/**
+	 * Moves this user's videos without a thumbnail between "pending" (ffmpeg
+	 * can make it) and "waiting for playback" (it cannot).
+	 */
+	public function switchVideoStates(string $userId, bool $ffmpeg): void {
+		$from = $ffmpeg ? self::THUMB_FROM_PLAYBACK : self::THUMB_PENDING;
+		$to = $ffmpeg ? self::THUMB_PENDING : self::THUMB_FROM_PLAYBACK;
+		$qb = $this->db->getQueryBuilder();
+		$qb->update(self::TABLE)
+			->set('thumb_state', $qb->createNamedParameter($to, IQueryBuilder::PARAM_INT))
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+			->andWhere($qb->expr()->eq('thumb_state', $qb->createNamedParameter($from, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('kind', $qb->createNamedParameter(self::KIND_VIDEO, IQueryBuilder::PARAM_INT)));
+		$qb->execute();
+	}
+
 	public function stats(string $userId): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('kind', 'thumb_state')
@@ -255,7 +273,7 @@ class MediaMapper {
 			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
 			->groupBy('kind', 'thumb_state');
 		$res = $qb->execute();
-		$s = ['total' => 0, 'photos' => 0, 'videos' => 0, 'ready' => 0, 'pending' => 0, 'failed' => 0];
+		$s = ['total' => 0, 'photos' => 0, 'videos' => 0, 'ready' => 0, 'pending' => 0, 'failed' => 0, 'playback' => 0];
 		while ($row = $res->fetchAssociative()) {
 			$n = (int)$row['n'];
 			$s['total'] += $n;
@@ -265,6 +283,8 @@ class MediaMapper {
 				$s['ready'] += $n;
 			} elseif ($st === self::THUMB_FAILED) {
 				$s['failed'] += $n;
+			} elseif ($st === self::THUMB_FROM_PLAYBACK) {
+				$s['playback'] += $n;
 			} else {
 				$s['pending'] += $n;
 			}

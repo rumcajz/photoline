@@ -168,8 +168,8 @@ class IndexService {
 			'height' => $meta['height'],
 			'duration' => $meta['duration'],
 			'color' => -1,
-			// Videos have no thumbnail without a video decoder: shown as a play tile.
-			'thumb_state' => $kind === MediaMapper::KIND_VIDEO ? MediaMapper::THUMB_FAILED : MediaMapper::THUMB_PENDING,
+			// Videos get a frame from ffmpeg, or from a browser that plays them (see ThumbnailService).
+			'thumb_state' => MediaMapper::THUMB_PENDING,
 		];
 	}
 

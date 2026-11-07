@@ -41,9 +41,25 @@ year and month scrubber for jumping through the years.
 - ownCloud 11, PHP 8.3 with GD (WebP support) and exif. Imagick with WebP
   support is used when available and is much faster (scaled JPEG decoding);
   GD is the fallback.
-- Background jobs in **cron** mode are strongly recommended.
-- Videos are shown with a play tile (no video decoder is needed). Browsers play
-  MP4, WebM and most MOV files directly.
+- Background jobs in **cron** mode are strongly recommended (admins see a
+  notice in the app otherwise).
+- Optional: **ffmpeg** for video thumbnails (see below). Browsers play MP4,
+  WebM and most MOV files directly, so no video tool is needed for playback.
+
+## Video thumbnails
+
+- **With ffmpeg** on the server (ownCloud's `preview_ffmpeg_path` system setting,
+  or `ffmpeg` on the PATH), the background job takes a frame one second into
+  each video (the first frame for very short videos). ffmpeg is not shipped
+  with the app.
+- **Without ffmpeg**, a video shows a play tile until someone plays it in the
+  timeline: the first frame the browser shows is then kept as its thumbnail.
+  The server accepts such a frame only for the user's own video that has no
+  thumbnail yet, only as a small JPEG, PNG or WebP image, and it decodes and
+  re-encodes it before storing it. Videos the browser cannot play keep the play
+  tile.
+- If ffmpeg is installed later, videos still waiting for playback are picked up
+  by the next background run.
 
 ## Background work
 
@@ -77,15 +93,20 @@ nice -n 19 occ photos-timeline:thumbnails
 
 Folders containing a `.nomedia` or `.noimage` file are left out, as in Gallery.
 
-## Removing the app
+## Disabling and removing the app
 
-```
-occ photos-timeline:purge --confirm   # index rows, thumbnail cache, user settings
-occ app:disable photos_timeline
-```
+- **Disabling** the app stops it and removes its background job. The index and
+  thumbnails are kept, so enabling it again is instant (the job is added back).
+- **Removing everything**:
 
-Then drop the empty table `<prefix>photos_timeline` and delete the app folder.
-Users' files are never touched.
+  ```
+  occ photos-timeline:purge --confirm
+  ```
+
+  deletes the thumbnail cache, drops the index table, deletes users' and the
+  app's settings, removes the background job and leaves the app disabled and
+  uninstalled. Then delete the app folder, or enable the app again to start
+  from scratch. Users' files are never touched.
 
 ## Tests
 
