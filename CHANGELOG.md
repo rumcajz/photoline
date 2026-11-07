@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.8
+
+- Viewer: the arrow keys and Escape keep working after switching to another
+  browser tab and back (focus could land outside the viewer).
+
 ## 1.1.7
 
 - New name: **PhotoLine** (menu, page title, Files button, notices, logs, docs).

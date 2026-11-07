@@ -1134,22 +1134,38 @@
 			box.querySelector('.ptl-v-next').addEventListener('click', function () {
 				go(1);
 			});
-			// Capture phase: a focused video player would otherwise swallow Escape.
-			box.addEventListener('keydown', function (e) {
+			// Keys are taken on the whole page while the viewer is open, in the
+			// capture phase: after switching browser tabs the focus may come back
+			// outside the viewer, and a focused video player would swallow Escape.
+			document.addEventListener('keydown', function (e) {
+				if (idx < 0 || e.altKey || e.ctrlKey || e.metaKey) {
+					return;
+				}
 				if (e.key === 'Escape' && !document.fullscreenElement) {
 					e.preventDefault();
 					hide();
+				} else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+					e.preventDefault();
+					go(e.key === 'ArrowLeft' ? -1 : 1);
+				} else if (e.key === 'Tab') {
+					if (!box.contains(document.activeElement)) {
+						e.preventDefault();
+						box.querySelector('.ptl-v-close').focus();
+					} else {
+						trapFocus(e);
+					}
 				}
 			}, true);
-			box.addEventListener('keydown', function (e) {
-				if (e.key === 'Escape') {
-					return; // handled above
-				} else if (e.key === 'ArrowLeft') {
-					go(-1);
-				} else if (e.key === 'ArrowRight') {
-					go(1);
-				} else if (e.key === 'Tab') {
-					trapFocus(e);
+			// Coming back to the tab: put the focus back into the viewer.
+			var refocus = function () {
+				if (idx >= 0 && !box.contains(document.activeElement)) {
+					box.querySelector('.ptl-v-close').focus({ preventScroll: true });
+				}
+			};
+			window.addEventListener('focus', refocus);
+			document.addEventListener('visibilitychange', function () {
+				if (!document.hidden) {
+					setTimeout(refocus, 0);
 				}
 			});
 			var stage = box.querySelector('.ptl-v-stage');

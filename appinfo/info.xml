@@ -20,7 +20,7 @@ Thumbnails are built by ownCloud's background jobs (cron mode recommended). The 
 	</description>
 	<licence>AGPL</licence>
 	<author>PhotoLine contributors</author>
-	<version>1.1.7</version>
+	<version>1.1.8</version>
 	<namespace>PhotosTimeline</namespace>
 	<category>multimedia</category>
 	<use-migrations>true</use-migrations>
