@@ -30,6 +30,7 @@ Thumbnails are built by ownCloud's background jobs (cron mode recommended). The 
 		<lib>exif</lib>
 	</dependencies>
 	<navigation>
+		<name>Photos Timeline</name>
 		<order>3</order>
 		<route>photos_timeline.page.index</route>
 	</navigation>
