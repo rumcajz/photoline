@@ -223,12 +223,12 @@ class ApiController extends Controller {
 			if (!\is_string($local)) {
 				return $this->notFound();
 			}
-			$data = $this->processor->makeLarge($local, (string)$node->getMimetype(), $edge);
+			$large = $this->processor->makeLarge($local, (string)$node->getMimetype(), $edge);
 		} catch (\Throwable $e) {
 			return $this->notFound();
 		}
-		$resp = new DataDisplayResponse($data, Http::STATUS_OK, [
-			'Content-Type' => 'image/webp',
+		$resp = new DataDisplayResponse($large['data'], Http::STATUS_OK, [
+			'Content-Type' => $large['mime'],
 			'X-Content-Type-Options' => 'nosniff',
 		]);
 		$resp->addHeader('Cache-Control', self::LONG_CACHE);

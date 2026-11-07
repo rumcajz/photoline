@@ -943,7 +943,7 @@
 				return;
 			}
 			var lab = el('span', 'ptl-scrub-year', String(m.y));
-			lab.style.top = y + 'px';
+			lab.style.top = Math.max(y, 8) + 'px'; // keep the first label inside the rail
 			E.scrubLabels.appendChild(lab);
 			lastY = y;
 		});

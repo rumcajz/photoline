@@ -21,6 +21,7 @@ class ImageProcessor {
 	public const SMALL_QUALITY = 60;
 	public const TINY_QUALITY = 40;
 	public const LARGE_QUALITY = 80;
+	public const LARGE_JPEG_QUALITY = 82;
 
 	/** ImageMagick coder per accepted type; the file is never sniffed for other formats. */
 	private const CODERS = [
@@ -53,16 +54,30 @@ class ImageProcessor {
 	}
 
 	/**
-	 * A large preview for the full-screen view (longest edge $maxEdge), made on demand.
+	 * A large preview for the full-screen view (longest edge about $maxEdge), made on demand.
+	 *
+	 * Speed matters more than exact size here: resizing a big photo is the slowest
+	 * step on a small server, so a JPEG that libjpeg already decoded at up to 1.5x
+	 * the wanted size is sent as it is and the browser scales it. JPEG photos are
+	 * returned as JPEG (encoding is several times faster than WebP); other types as WebP.
+	 *
+	 * @return array{data:string, mime:string}
 	 */
-	public function makeLarge(string $path, string $mime, int $maxEdge): string {
+	public function makeLarge(string $path, string $mime, int $maxEdge): array {
 		if ($this->useImagick && isset(self::CODERS[$mime])) {
 			try {
-				$im = $this->readImagick($path, $mime, $maxEdge);
+				$im = $this->readImagick($path, $mime, $maxEdge, false, 0.8);
 				try {
-					$this->fitImagick($im, $maxEdge, $maxEdge);
+					$long = \max($im->getImageWidth(), $im->getImageHeight());
+					if ($long > $maxEdge * 1.5) {
+						$this->fitImagick($im, $maxEdge, $maxEdge);
+					}
 					$im->autoOrient();
-					return $this->webpImagick($im, self::LARGE_QUALITY);
+					if ($mime === 'image/jpeg') {
+						return ['data' => $this->jpegImagick($im, self::LARGE_JPEG_QUALITY), 'mime' => 'image/jpeg'];
+					}
+					$this->fitImagick($im, $maxEdge, $maxEdge);
+					return ['data' => $this->webpImagick($im, self::LARGE_QUALITY), 'mime' => 'image/webp'];
 				} finally {
 					$im->clear();
 				}
@@ -73,11 +88,17 @@ class ImageProcessor {
 		$img = $this->loadGd($path, $mime);
 		try {
 			$out = $this->scaleGd($img, $maxEdge, $maxEdge);
-			$data = $this->webpGd($out, self::LARGE_QUALITY);
+			if ($mime === 'image/jpeg') {
+				\ob_start();
+				\imagejpeg($out, null, self::LARGE_JPEG_QUALITY);
+				$res = ['data' => (string)\ob_get_clean(), 'mime' => 'image/jpeg'];
+			} else {
+				$res = ['data' => $this->webpGd($out, self::LARGE_QUALITY), 'mime' => 'image/webp'];
+			}
 			if ($out !== $img) {
 				\imagedestroy($out);
 			}
-			return $data;
+			return $res;
 		} finally {
 			\imagedestroy($img);
 		}
@@ -116,8 +137,10 @@ class ImageProcessor {
 	/**
 	 * @param int $hint the longest edge needed (large view), or for thumbnails
 	 *                  ($forHeight) the displayed height needed
+	 * @param float $slack accept a decode this much smaller than $hint (e.g. 0.8),
+	 *                  so a 4080 px photo decodes at 1/2 instead of full size for 2048
 	 */
-	private function readImagick(string $path, string $mime, int $hint, bool $forHeight = false): \Imagick {
+	private function readImagick(string $path, string $mime, int $hint, bool $forHeight = false, float $slack = 1.0): \Imagick {
 		$im = new \Imagick();
 		$info = $mime === 'image/jpeg' ? @\getimagesize($path) : false;
 		if (\is_array($info) && $info[0] > 0 && $info[1] > 0) {
@@ -130,7 +153,7 @@ class ImageProcessor {
 				$shown = $sideways ? $w : $h;
 				$scale = $hint / $shown;
 			} else {
-				$scale = $hint / \max($w, $h);
+				$scale = $hint * $slack / \max($w, $h);
 			}
 			if ($scale < 1) {
 				$im->setOption('jpeg:size', (int)\ceil($w * $scale) . 'x' . (int)\ceil($h * $scale));
@@ -154,6 +177,14 @@ class ImageProcessor {
 		if ($scale < 1) {
 			$im->resizeImage((int)\max(1, \round($w * $scale)), (int)\max(1, \round($h * $scale)), \Imagick::FILTER_TRIANGLE, 1);
 		}
+	}
+
+	private function jpegImagick(\Imagick $im, int $quality): string {
+		$im->setImageFormat('jpeg');
+		$im->setImageCompressionQuality($quality);
+		$im->setOption('jpeg:sampling-factor', '4:2:0');
+		$im->stripImage();
+		return $im->getImageBlob();
 	}
 
 	private function webpImagick(\Imagick $im, int $quality): string {

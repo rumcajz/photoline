@@ -38,8 +38,9 @@ year and month scrubber for jumping through the years.
 
 ## Requirements
 
-- ownCloud 11, PHP 8.3 with GD (WebP support) and exif. Imagick is used, when
-  available, for TIFF and very large photos.
+- ownCloud 11, PHP 8.3 with GD (WebP support) and exif. Imagick with WebP
+  support is used when available and is much faster (scaled JPEG decoding);
+  GD is the fallback.
 - Background jobs in **cron** mode are strongly recommended.
 - Videos are shown with a play tile (no video decoder is needed). Browsers play
   MP4, WebM and most MOV files directly.
@@ -95,6 +96,23 @@ sudo -u www-data php apps/photos_timeline/tests/run.php [userA userB ...]
 Runs unit checks, verifies that no route is public or skips the CSRF check, and
 with two or more user ids checks that no user can get another user's thumbnails,
 previews, timeline items or folders. It only reads data.
+
+## Publishing to the ownCloud Marketplace
+
+Since ownCloud 11, apps must be code-signed; unsigned apps are blocked when they
+are installed or enabled from the Marketplace. To publish:
+
+1. Request a code-signing certificate for the app id `photos_timeline` in the
+   `owncloud/developer-certificates` repository (issue form with your CSR and
+   the source repository).
+2. Sign the release with `ocsign` and build `package.tar.gz` (the app folder
+   without `tests/`, `_ref/` and `.git`).
+3. Open a pull request to `owncloud/marketplace` adding
+   `apps/photos_timeline/releases/<version>/package.tar.gz` (Git LFS, signed
+   commits with a DCO `Signed-off-by` line).
+
+Before that, add `<website>`, `<bugs>` and `<repository>` to `appinfo/info.xml`
+and a screenshot.
 
 ## License
 
