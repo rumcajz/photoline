@@ -1,6 +1,6 @@
 <?php
 /**
- * Photos Timeline
+ * PhotoLine
  *
  * @license AGPL-3.0
  */
@@ -32,7 +32,8 @@ class Index extends Command {
 	}
 
 	protected function configure() {
-		$this->setName('photos-timeline:index')
+		$this->setName('photoline:index')
+			->setAliases(['photos-timeline:index'])
 			->setDescription('Update the timeline index (only what changed, unless --force)')
 			->addArgument('user', InputArgument::OPTIONAL | InputArgument::IS_ARRAY, 'User ids (default: all users)')
 			->addOption('force', 'f', InputOption::VALUE_NONE, 'Check every file even if nothing seems to have changed');
@@ -40,7 +41,7 @@ class Index extends Command {
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		if (!$this->thumbs->acquireLock()) {
-			$output->writeln('<error>Another Photos Timeline run is busy, try again later.</error>');
+			$output->writeln('<error>Another PhotoLine run is busy, try again later.</error>');
 			return 1;
 		}
 		try {

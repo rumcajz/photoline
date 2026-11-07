@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.7
+
+- New name: **PhotoLine** (menu, page title, Files button, notices, logs, docs).
+  The app id stays `photos_timeline`, so settings, index and thumbnails are kept.
+- occ commands renamed to `photoline:index|thumbnails|status|purge`; the old
+  `photos-timeline:…` names remain as aliases.
+
 ## 1.1.6
 
 - Escape and the arrow keys work in the viewer also after the video player's

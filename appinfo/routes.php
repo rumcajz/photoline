@@ -1,6 +1,6 @@
 <?php
 /**
- * Photos Timeline
+ * PhotoLine
  *
  * @license AGPL-3.0
  *

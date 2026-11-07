@@ -1,5 +1,5 @@
 /**
- * Photos Timeline
+ * PhotoLine
  *
  * @license AGPL-3.0
  *
@@ -1595,7 +1595,7 @@
 		writeUrl();
 		load();
 		if (E.root.getAttribute('data-cron-warning') && window.OC && OC.Notification) {
-			OC.Notification.showTemporary(tr('Photos Timeline: background jobs are not set to "Cron" (Admin settings). Thumbnails will be made slowly.'), { timeout: 12 });
+			OC.Notification.showTemporary(tr('PhotoLine: background jobs are not set to "Cron" (Admin settings). Thumbnails will be made slowly.'), { timeout: 12 });
 		}
 	}
 

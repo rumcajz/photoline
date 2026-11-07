@@ -1,6 +1,6 @@
 <?php
 /**
- * Photos Timeline
+ * PhotoLine
  *
  * @license AGPL-3.0
  */
@@ -18,7 +18,7 @@ use OCP\Migration\IRepairStep;
  * Runs when the app is disabled: removes its background job, so nothing is
  * left in ownCloud's job list. The index and thumbnails are kept, so enabling
  * the app again is instant; Application::ensureBackgroundJob() adds the job back.
- * `occ photos-timeline:purge --confirm` removes everything.
+ * `occ photoline:purge --confirm` removes everything.
  */
 class RemoveBackgroundJob implements IRepairStep {
 	/** @var IJobList */
@@ -32,7 +32,7 @@ class RemoveBackgroundJob implements IRepairStep {
 	}
 
 	public function getName() {
-		return 'Remove the Photos Timeline background job';
+		return 'Remove the PhotoLine background job';
 	}
 
 	public function run(IOutput $output) {

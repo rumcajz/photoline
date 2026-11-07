@@ -1,6 +1,6 @@
 <?php
 /**
- * Photos Timeline
+ * PhotoLine
  *
  * @license AGPL-3.0
  */
@@ -156,7 +156,7 @@ class ThumbnailService {
 		} catch (\Throwable $e) {
 			// a video ffmpeg cannot read may still get a frame from a browser
 			$this->mapper->setThumbState($userId, $fileId, $video ? MediaMapper::THUMB_FROM_PLAYBACK : MediaMapper::THUMB_FAILED);
-			$this->logger->info('Photos Timeline: no thumbnail for file ' . $fileId . ': ' . $e->getMessage(), ['app' => Application::APP_ID]);
+			$this->logger->info('PhotoLine: no thumbnail for file ' . $fileId . ': ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return false;
 		} finally {
 			if ($frame !== null) {
@@ -175,7 +175,7 @@ class ThumbnailService {
 			$this->views->bump($userId);
 			return true;
 		} catch (\Throwable $e) {
-			$this->logger->info('Photos Timeline: frame for video ' . $fileId . ' not usable: ' . $e->getMessage(), ['app' => Application::APP_ID]);
+			$this->logger->info('PhotoLine: frame for video ' . $fileId . ' not usable: ' . $e->getMessage(), ['app' => Application::APP_ID]);
 			return false;
 		}
 	}

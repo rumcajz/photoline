@@ -1,6 +1,6 @@
 <?php
 /**
- * Photos Timeline: self-contained test runner (no PHPUnit needed).
+ * PhotoLine: self-contained test runner (no PHPUnit needed).
  *
  * Runs inside an ownCloud installation, as the web server user:
  *   php apps/photos_timeline/tests/run.php [userA userB [userC]]

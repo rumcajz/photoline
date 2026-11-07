@@ -1,6 +1,6 @@
 <?php
 /**
- * Photos Timeline
+ * PhotoLine
  *
  * @license AGPL-3.0
  */
@@ -106,7 +106,7 @@ class IndexService {
 						$row = $this->describe($node, $path, $mime, $kind, $etag);
 					} catch (\Throwable $e) {
 						$result['errors']++;
-						$this->logger->info('Photos Timeline could not read ' . $path . ': ' . $e->getMessage(), ['app' => Application::APP_ID]);
+						$this->logger->info('PhotoLine could not read ' . $path . ': ' . $e->getMessage(), ['app' => Application::APP_ID]);
 						continue;
 					}
 					if ($old === null) {

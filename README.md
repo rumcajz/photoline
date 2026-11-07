@@ -1,4 +1,4 @@
-# Photos Timeline for ownCloud
+# PhotoLine for ownCloud
 
 A fast, view-only timeline of your photos and videos, grouped by day, with a
 year and month scrubber for jumping through the years.
@@ -12,6 +12,9 @@ year and month scrubber for jumping through the years.
 - **Full-screen view** with keyboard (arrows, Esc) and swipe navigation, "Show in
   Files" and "Download original".
 - **View only**: the app never uploads, changes, moves, deletes or shares files.
+
+The app id is `photos_timeline` (app folder, database table, cache folder). The
+occ commands are `occ photoline:…`; the earlier `photos-timeline:…` names still work.
 
 ## Why it is fast
 
@@ -79,16 +82,16 @@ App settings (`occ config:app:set photos_timeline <key> --value=<n>`):
 Commands:
 
 ```
-occ photos-timeline:index [user...] [--force]
-occ photos-timeline:thumbnails [user...] [--all-folders] [--time=SECONDS] [--retry-failed]
-occ photos-timeline:status
-occ photos-timeline:purge --confirm
+occ photoline:index [user...] [--force]
+occ photoline:thumbnails [user...] [--all-folders] [--time=SECONDS] [--retry-failed]
+occ photoline:status
+occ photoline:purge --confirm
 ```
 
 For a large library, run the first thumbnail pass by hand, at low priority:
 
 ```
-nice -n 19 occ photos-timeline:thumbnails
+nice -n 19 occ photoline:thumbnails
 ```
 
 Folders containing a `.nomedia` or `.noimage` file are left out, as in Gallery.
@@ -100,7 +103,7 @@ Folders containing a `.nomedia` or `.noimage` file are left out, as in Gallery.
 - **Removing everything**:
 
   ```
-  occ photos-timeline:purge --confirm
+  occ photoline:purge --confirm
   ```
 
   deletes the thumbnail cache, drops the index table, deletes users' and the
