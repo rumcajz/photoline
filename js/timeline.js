@@ -419,7 +419,8 @@
 	}
 
 	function relayout(force) {
-		var width = Math.floor(E.scroll.clientWidth - 2);
+		// the canvas width excludes the scroll area's padding (room for the scrubber)
+		var width = Math.floor(E.canvas.clientWidth - 1);
 		if (!S.items.length) {
 			return;
 		}
@@ -757,7 +758,11 @@
 			if (!list.length) {
 				return;
 			}
-			// First look in the browser's own cache.
+			// Claimed while we look in the browser's own cache, so the next
+			// scroll frame does not look them up again.
+			list.forEach(function (it) {
+				pending.add(size + ':' + it[F.id]);
+			});
 			cache().then(function (c) {
 				if (!c) {
 					return list;
@@ -786,12 +791,19 @@
 					return rest.filter(Boolean);
 				});
 			}).then(function (missing) {
+				list.forEach(function (it) {
+					pending.delete(size + ':' + it[F.id]);
+				});
 				missing = missing.filter(function (it) {
 					return needs(size, it);
 				});
 				for (var i = 0; i < missing.length && active < PARALLEL + (size === 't' ? 1 : 0); i += batchSize) {
 					fetchPack(size, missing.slice(i, i + batchSize));
 				}
+			}).catch(function () {
+				list.forEach(function (it) {
+					pending.delete(size + ':' + it[F.id]);
+				});
 			});
 		}
 
@@ -1207,12 +1219,24 @@
 			d.setAttribute('download', it[F.name]);
 			box.querySelector('.ptl-v-prev').hidden = i <= 0;
 			box.querySelector('.ptl-v-next').hidden = i >= S.items.length - 1;
-			// get the neighbours ready
-			[i + 1, i - 1].forEach(function (n) {
-				if (n >= 0 && n < S.items.length && S.items[n][F.kind] === 1) {
-					large(S.items[n]).catch(function () {});
+			// get the neighbours ready, one after the other, once this one is shown
+			var current = it[F.kind] === 1 ? large(it) : Promise.resolve();
+			current.catch(function () {}).then(function () {
+				var next = S.items[i + 1];
+				if (idx === i && next && next[F.kind] === 1) {
+					return large(next);
+				}
+			}).catch(function () {}).then(function () {
+				var prev = S.items[i - 1];
+				if (idx === i && prev && prev[F.kind] === 1) {
+					large(prev).catch(function () {});
 				}
 			});
+		}
+
+		function largeEdge() {
+			var px = Math.max(window.screen.width, window.screen.height) * (window.devicePixelRatio || 1);
+			return px <= 1100 ? 1024 : (px <= 1700 ? 1600 : 2048);
 		}
 
 		function large(it) {
@@ -1220,7 +1244,7 @@
 			if (largeCache.has(id)) {
 				return largeCache.get(id);
 			}
-			var p = request(api('large/' + id) + '?v=' + it[F.ver]).then(function (r) {
+			var p = request(api('large/' + id) + '?w=' + largeEdge() + '&v=' + it[F.ver]).then(function (r) {
 				return r.blob();
 			}).then(function (b) {
 				return URL.createObjectURL(b);
@@ -1456,22 +1480,24 @@
 		bindCanvas();
 		bindScrubber();
 		renderCrumbs();
-		request(api('settings')).then(function (r) {
-			return r.json();
-		}).then(function (s) {
-			S.settings = s;
-			if (S.scope === 'mine' && !S.types && !S.from && !S.to && !window.location.search) {
-				// Last used filters of My timeline
-				S.types = s.types || 'all';
-				S.from = s.from || '';
-				S.to = s.to || '';
-			}
-		}).catch(function () {}).then(function () {
-			S.types = S.types || 'all';
-			renderFilters();
-			writeUrl();
-			load();
-		});
+		// The page carries the user's settings, so the timeline loads at once.
+		var s = null;
+		try {
+			s = JSON.parse(E.root.getAttribute('data-settings') || 'null');
+		} catch (e) {
+			s = null;
+		}
+		S.settings = s;
+		if (s && S.scope === 'mine' && !window.location.search) {
+			// Last used filters of My timeline
+			S.types = s.types || 'all';
+			S.from = s.from || '';
+			S.to = s.to || '';
+		}
+		S.types = S.types || 'all';
+		renderFilters();
+		writeUrl();
+		load();
 	}
 
 	if (document.readyState === 'loading') {

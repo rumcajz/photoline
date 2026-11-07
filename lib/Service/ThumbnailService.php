@@ -28,7 +28,11 @@ class ThumbnailService {
 	/** @var resource|null */
 	private $lock;
 
-	public function __construct(MediaMapper $mapper, ThumbnailStore $store, ImageProcessor $processor, ILogger $logger) {
+	/** @var ViewCache */
+	private $views;
+
+	public function __construct(MediaMapper $mapper, ThumbnailStore $store, ImageProcessor $processor, ILogger $logger, ViewCache $views) {
+		$this->views = $views;
 		$this->mapper = $mapper;
 		$this->store = $store;
 		$this->processor = $processor;
@@ -71,6 +75,17 @@ class ThumbnailService {
 	 */
 	public function processBacklog(string $userId, Folder $userFolder, ?array $prefixes, float $deadline, ?callable $progress = null): array {
 		$out = ['done' => 0, 'failed' => 0, 'more' => false];
+		try {
+			return $this->backlog($userId, $userFolder, $prefixes, $deadline, $progress, $out);
+		} finally {
+			// new thumbnails bring new placeholder colours: refresh cached views
+			if ($out['done'] > 0) {
+				$this->views->bump($userId);
+			}
+		}
+	}
+
+	private function backlog(string $userId, Folder $userFolder, ?array $prefixes, float $deadline, ?callable $progress, array &$out): array {
 		$this->mapper->failStuckThumbs($userId);
 		while (\microtime(true) < $deadline) {
 			$rows = $this->mapper->findPendingThumbs($userId, $prefixes, 50);
@@ -83,6 +98,9 @@ class ThumbnailService {
 					return $out;
 				}
 				$this->generate($userId, $userFolder, $row) ? $out['done']++ : $out['failed']++;
+				if ($out['done'] > 0 && $out['done'] % 1000 === 0) {
+					$this->views->bump($userId);
+				}
 				if ($progress && ($out['done'] + $out['failed']) % 100 === 0) {
 					$progress(\sprintf('%s: %d thumbnails made, %d failed', $userId, $out['done'], $out['failed']));
 				}

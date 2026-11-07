@@ -9,11 +9,27 @@
 (function () {
 	'use strict';
 
+	function currentDir() {
+		try {
+			var fl = window.OCA && OCA.Files && OCA.Files.App && OCA.Files.App.fileList;
+			if (fl && typeof fl.getCurrentDirectory === 'function') {
+				return fl.getCurrentDirectory();
+			}
+		} catch (e) {
+			// fall back to the address below
+		}
+		var dir = new URLSearchParams(window.location.search).get('dir');
+		return dir || '/';
+	}
+
 	function init() {
-		var filesApp = document.getElementById('filesApp');
-		var controls = document.getElementById('controls');
-		if (!filesApp || !controls || document.getElementById('isPublic') && document.getElementById('isPublic').value) {
+		var isPublic = document.getElementById('isPublic');
+		if (!document.getElementById('filesApp') || (isPublic && isPublic.value)) {
 			return; // not the logged-in Files view (e.g. a public share link)
+		}
+		var controls = document.querySelector('#app-content-files #controls') || document.getElementById('controls');
+		if (!controls || document.getElementById('photos-timeline-button')) {
+			return;
 		}
 		var button = document.createElement('a');
 		button.id = 'photos-timeline-button';
@@ -28,30 +44,28 @@
 		button.appendChild(img);
 
 		function update() {
-			var dir = '/';
-			if (window.OCA && OCA.Files && OCA.Files.App && OCA.Files.App.fileList) {
-				dir = OCA.Files.App.fileList.getCurrentDirectory();
-			} else if (window.FileList) {
-				dir = FileList.getCurrentDirectory();
-			}
-			button.href = OC.generateUrl('/apps/photos_timeline/') + '?folder=' + encodeURIComponent(String(dir).replace(/^\/+/, ''));
+			var dir = String(currentDir()).replace(/^\/+/, '');
+			button.href = OC.generateUrl('/apps/photos_timeline/') + '?folder=' + encodeURIComponent(dir);
 		}
 
 		update();
-		// Gallery prepends its button too; keep ours right next to it.
+		// Next to Gallery's button (both float right).
 		var gallery = document.getElementById('gallery-button');
-		if (gallery) {
-			gallery.parentNode.insertBefore(button, gallery);
+		if (gallery && gallery.parentNode === controls) {
+			controls.insertBefore(button, gallery.nextSibling);
 		} else {
 			controls.insertBefore(button, controls.firstChild);
 		}
-		var list = document.getElementById('fileList');
-		if (list && window.$) {
-			$(list).on('updated changeDirectory', update);
-		}
+		// The folder can change without a page load: refresh the link whenever it may be used.
+		['mouseenter', 'mousedown', 'focus', 'touchstart'].forEach(function (ev) {
+			button.addEventListener(ev, update, { passive: true });
+		});
 		window.addEventListener('popstate', update);
-		button.addEventListener('mousedown', update);
-		button.addEventListener('focus', update);
+		if (window.$) {
+			$('#app-content-files').on('changeDirectory', function () {
+				setTimeout(update, 0);
+			});
+		}
 	}
 
 	if (window.$) {

@@ -1,0 +1,101 @@
+# Photos Timeline for ownCloud
+
+A fast, view-only timeline of your photos and videos, grouped by day, with a
+year and month scrubber for jumping through the years.
+
+- **My timeline**: one timeline made from the folders you choose (by default
+  `CameraUpload`). When the same photo is in several of them (same name and
+  size), it is shown once, from the folder highest in your list.
+- **Any folder**: the button next to Gallery's in the Files app opens the
+  timeline of the folder you are in, including its subfolders.
+- **Filters**: photos, videos or both; optional from and to dates.
+- **Full-screen view** with keyboard (arrows, Esc) and swipe navigation, "Show in
+  Files" and "Download original".
+- **View only**: the app never uploads, changes, moves, deletes or shares files.
+
+## Why it is fast
+
+- A small index table (`<prefix>photos_timeline`) holds the date, size and shape
+  of every photo and video, so opening a timeline is a single query.
+- Thumbnails (a 320 px and a 48 px WebP per photo) are made in the background, so
+  browsing never waits for image processing. The browser receives them in packs
+  of up to 60 (300 for the small placeholders) and keeps them in its cache storage.
+- Only the part of the grid on screen is drawn.
+
+## Security
+
+- Every route needs a logged-in ownCloud user; there are no public routes and no
+  share links. All API calls need ownCloud's CSRF token.
+- The user id always comes from the session. Every file id is checked against
+  that user's own index *and* their file system (`getById` on their own folder)
+  before a thumbnail or preview is returned.
+- Thumbnails are stored in `<datadirectory>/appdata_photos_timeline/<user>/`,
+  outside the web root and outside ownCloud's file cache.
+- The browser only receives id, date, size, type, file name and folder of each
+  item. Location and other EXIF data are never sent.
+- Thumbnails are cached in the browser's cache storage under a per-user name and
+  are removed when you log out from the app's page.
+
+## Requirements
+
+- ownCloud 11, PHP 8.3 with GD (WebP support) and exif. Imagick is used, when
+  available, for TIFF and very large photos.
+- Background jobs in **cron** mode are strongly recommended.
+- Videos are shown with a play tile (no video decoder is needed). Browsers play
+  MP4, WebM and most MOV files directly.
+
+## Background work
+
+A background job runs every 5 minutes. It updates the index (only when something
+in a user's files changed) and makes thumbnails for each user's selected folders:
+up to 240 seconds per run between 01:00 and 06:00, 30 seconds per run otherwise.
+Photos outside the selected folders get their thumbnails the first time they are
+viewed.
+
+App settings (`occ config:app:set photos_timeline <key> --value=<n>`):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `night_start`, `night_end` | 1, 6 | Hours of the night window |
+| `budget_night`, `budget_day` | 240, 30 | Seconds of thumbnail work per run |
+
+Commands:
+
+```
+occ photos-timeline:index [user...] [--force]
+occ photos-timeline:thumbnails [user...] [--all-folders] [--time=SECONDS] [--retry-failed]
+occ photos-timeline:status
+occ photos-timeline:purge --confirm
+```
+
+For a large library, run the first thumbnail pass by hand, at low priority:
+
+```
+nice -n 19 occ photos-timeline:thumbnails
+```
+
+Folders containing a `.nomedia` or `.noimage` file are left out, as in Gallery.
+
+## Removing the app
+
+```
+occ photos-timeline:purge --confirm   # index rows, thumbnail cache, user settings
+occ app:disable photos_timeline
+```
+
+Then drop the empty table `<prefix>photos_timeline` and delete the app folder.
+Users' files are never touched.
+
+## Tests
+
+```
+sudo -u www-data php apps/photos_timeline/tests/run.php [userA userB ...]
+```
+
+Runs unit checks, verifies that no route is public or skips the CSRF check, and
+with two or more user ids checks that no user can get another user's thumbnails,
+previews, timeline items or folders. It only reads data.
+
+## License
+
+AGPL-3.0, see `COPYING`.

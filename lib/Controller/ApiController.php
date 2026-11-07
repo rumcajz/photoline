@@ -12,6 +12,7 @@ use OCA\PhotosTimeline\Service\ImageProcessor;
 use OCA\PhotosTimeline\Service\SettingsService;
 use OCA\PhotosTimeline\Service\ThumbnailService;
 use OCA\PhotosTimeline\Service\ThumbnailStore;
+use OCA\PhotosTimeline\Service\ViewCache;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataDisplayResponse;
@@ -49,10 +50,12 @@ class ApiController extends Controller {
 	private $processor;
 	/** @var SettingsService */
 	private $settings;
+	/** @var ViewCache */
+	private $views;
 
 	public function __construct(string $AppName, IRequest $request, IUserSession $userSession, IRootFolder $rootFolder,
 								MediaMapper $mapper, ThumbnailStore $store, ThumbnailService $thumbs,
-								ImageProcessor $processor, SettingsService $settings) {
+								ImageProcessor $processor, SettingsService $settings, ViewCache $views) {
 		parent::__construct($AppName, $request);
 		$this->userSession = $userSession;
 		$this->rootFolder = $rootFolder;
@@ -61,6 +64,7 @@ class ApiController extends Controller {
 		$this->thumbs = $thumbs;
 		$this->processor = $processor;
 		$this->settings = $settings;
+		$this->views = $views;
 	}
 
 	/**
@@ -88,6 +92,12 @@ class ApiController extends Controller {
 		$toDate = SettingsService::cleanDate($to);
 		$fromTs = $fromDate !== null ? \gmmktime(0, 0, 0, (int)\substr($fromDate, 5, 2), (int)\substr($fromDate, 8, 2), (int)\substr($fromDate, 0, 4)) : null;
 		$toTs = $toDate !== null ? \gmmktime(23, 59, 59, (int)\substr($toDate, 5, 2), (int)\substr($toDate, 8, 2), (int)\substr($toDate, 0, 4)) : null;
+
+		$cacheKey = $this->views->key($uid, [$scope === 'mine', $prefixes, $kinds, $fromTs, $toTs]);
+		$cached = $this->views->get($uid, $cacheKey);
+		if ($cached !== null) {
+			return $this->gzipResponse($cached);
+		}
 
 		$rows = $this->mapper->findForTimeline($uid, $prefixes, $kinds, $fromTs, $toTs);
 		$also = [];
@@ -133,14 +143,16 @@ class ApiController extends Controller {
 			$items[] = $item;
 		}
 
-		return $this->json([
+		$gz = \gzencode(\json_encode([
 			'v' => 1,
 			'scope' => $scope === 'mine' ? 'mine' : 'folder',
 			'folders' => $prefixes,
 			'dirs' => $dirs,
 			'mimes' => $mimes,
 			'items' => $items,
-		]);
+		], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), 6);
+		$this->views->put($uid, $cacheKey, $gz);
+		return $this->gzipResponse($gz);
 	}
 
 	/**
@@ -193,7 +205,9 @@ class ApiController extends Controller {
 	 *
 	 * @NoAdminRequired
 	 */
-	public function large(int $fileId): Response {
+	public function large(int $fileId, int $w = 2048): Response {
+		// a few fixed sizes, so browser caching works and requests stay cheap
+		$edge = $w <= 1024 ? 1024 : ($w <= 1600 ? 1600 : self::LARGE_EDGE);
 		[$uid, $userFolder] = $this->current();
 		$rows = $this->mapper->findByIds($uid, [$fileId]);
 		$row = $rows[$fileId] ?? null;
@@ -209,7 +223,7 @@ class ApiController extends Controller {
 			if (!\is_string($local)) {
 				return $this->notFound();
 			}
-			$data = $this->processor->makeLarge($local, (string)$node->getMimetype(), self::LARGE_EDGE);
+			$data = $this->processor->makeLarge($local, (string)$node->getMimetype(), $edge);
 		} catch (\Throwable $e) {
 			return $this->notFound();
 		}
@@ -394,6 +408,18 @@ class ApiController extends Controller {
 			$headers['Content-Encoding'] = 'gzip';
 		}
 		return new DataDisplayResponse($json, Http::STATUS_OK, $headers);
+	}
+
+	/**
+	 * Sends already gzip-compressed JSON (decompressed for the rare client without gzip).
+	 */
+	private function gzipResponse(string $gz): Response {
+		$headers = ['Content-Type' => 'application/json; charset=utf-8', 'X-Content-Type-Options' => 'nosniff', 'Vary' => 'Accept-Encoding'];
+		if (\stripos((string)$this->request->getHeader('Accept-Encoding'), 'gzip') !== false) {
+			$headers['Content-Encoding'] = 'gzip';
+			return new DataDisplayResponse($gz, Http::STATUS_OK, $headers);
+		}
+		return new DataDisplayResponse((string)\gzdecode($gz), Http::STATUS_OK, $headers);
 	}
 
 	private function notFound(): Response {

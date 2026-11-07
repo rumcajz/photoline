@@ -33,9 +33,12 @@ class IndexService {
 	private $config;
 	/** @var ILogger */
 	private $logger;
+	/** @var ViewCache */
+	private $views;
 
 	public function __construct(IRootFolder $rootFolder, MediaMapper $mapper, MetadataExtractor $extractor,
-								ThumbnailStore $store, IConfig $config, ILogger $logger) {
+								ThumbnailStore $store, IConfig $config, ILogger $logger, ViewCache $views) {
+		$this->views = $views;
 		$this->rootFolder = $rootFolder;
 		$this->mapper = $mapper;
 		$this->extractor = $extractor;
@@ -139,6 +142,9 @@ class IndexService {
 		}
 
 		$result['total'] = \count($seen);
+		if ($result['added'] + $result['updated'] + $result['moved'] + $result['removed'] > 0) {
+			$this->views->bump($userId);
+		}
 		$this->config->setUserValue($userId, Application::APP_ID, 'index_etag', $rootEtag);
 		return $result;
 	}

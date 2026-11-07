@@ -8,58 +8,72 @@
 namespace OCA\PhotosTimeline\Service;
 
 /**
- * Makes WebP thumbnails from a local image file with GD (Imagick, when installed,
- * for TIFF and very large photos). EXIF orientation is applied.
+ * Makes WebP thumbnails from a local image file, with EXIF orientation applied.
+ *
+ * Imagick is used when available: libjpeg can then decode a JPEG directly at
+ * 1/2, 1/4 or 1/8 scale, which is several times faster than decoding the full
+ * photo. Without Imagick, GD is used (slower, same result).
  */
 class ImageProcessor {
 	public const SMALL_HEIGHT = 320;
 	public const SMALL_MAX_WIDTH = 1280;
 	public const TINY_HEIGHT = 48;
-	public const SMALL_QUALITY = 62;
+	public const SMALL_QUALITY = 60;
 	public const TINY_QUALITY = 40;
 	public const LARGE_QUALITY = 80;
 
-	/** Above this many pixels GD is not used (memory), Imagick is. */
+	/** ImageMagick coder per accepted type; the file is never sniffed for other formats. */
+	private const CODERS = [
+		'image/jpeg' => 'jpeg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp',
+		'image/bmp' => 'bmp', 'image/x-ms-bmp' => 'bmp', 'image/tiff' => 'tiff',
+	];
+
+	/** Above this many pixels GD is not used (memory). */
 	private const GD_MAX_PIXELS = 50000000;
+
+	/** @var bool */
+	private $useImagick;
+
+	public function __construct() {
+		$this->useImagick = \class_exists(\Imagick::class) && \in_array('WEBP', \Imagick::queryFormats('WEBP'), true);
+	}
 
 	/**
 	 * @return array{s:string, t:string, color:int}
 	 */
 	public function makeThumbs(string $path, string $mime): array {
-		$img = $this->load($path, $mime, self::SMALL_HEIGHT * 2);
-		try {
-			$small = $this->scaleToHeight($img, self::SMALL_HEIGHT, self::SMALL_MAX_WIDTH);
-			$tiny = $this->scaleToHeight($small, self::TINY_HEIGHT, 400);
-			$color = $this->averageColor($tiny);
-			$out = [
-				's' => $this->encode($small, self::SMALL_QUALITY),
-				't' => $this->encode($tiny, self::TINY_QUALITY),
-				'color' => $color,
-			];
-			if ($small !== $img) {
-				\imagedestroy($small);
+		if ($this->useImagick && isset(self::CODERS[$mime])) {
+			try {
+				return $this->thumbsWithImagick($path, $mime);
+			} catch (\ImagickException $e) {
+				// fall back to GD below
 			}
-			\imagedestroy($tiny);
-			return $out;
-		} finally {
-			\imagedestroy($img);
 		}
+		return $this->thumbsWithGd($path, $mime);
 	}
 
 	/**
 	 * A large preview for the full-screen view (longest edge $maxEdge), made on demand.
 	 */
 	public function makeLarge(string $path, string $mime, int $maxEdge): string {
-		$img = $this->load($path, $mime, $maxEdge);
-		try {
-			$w = \imagesx($img);
-			$h = \imagesy($img);
-			$scale = \min(1, $maxEdge / \max($w, $h));
-			$out = $img;
-			if ($scale < 1) {
-				$out = $this->resample($img, (int)\max(1, \round($w * $scale)), (int)\max(1, \round($h * $scale)));
+		if ($this->useImagick && isset(self::CODERS[$mime])) {
+			try {
+				$im = $this->readImagick($path, $mime, $maxEdge);
+				try {
+					$this->fitImagick($im, $maxEdge, $maxEdge);
+					$im->autoOrient();
+					return $this->webpImagick($im, self::LARGE_QUALITY);
+				} finally {
+					$im->clear();
+				}
+			} catch (\ImagickException $e) {
+				// fall back to GD below
 			}
-			$data = $this->encode($out, self::LARGE_QUALITY);
+		}
+		$img = $this->loadGd($path, $mime);
+		try {
+			$out = $this->scaleGd($img, $maxEdge, $maxEdge);
+			$data = $this->webpGd($out, self::LARGE_QUALITY);
 			if ($out !== $img) {
 				\imagedestroy($out);
 			}
@@ -69,39 +83,134 @@ class ImageProcessor {
 		}
 	}
 
-	/**
-	 * @return \GdImage
-	 */
-	private function load(string $path, string $mime, int $hint) {
-		$info = @\getimagesize($path);
-		$pixels = \is_array($info) ? $info[0] * $info[1] : 0;
-		$useImagick = $mime === 'image/tiff' || $pixels > self::GD_MAX_PIXELS;
+	// ------------------------------------------------------------ Imagick
 
-		$img = null;
-		if (!$useImagick) {
-			switch ($mime) {
-				case 'image/jpeg':
-					$img = @\imagecreatefromjpeg($path);
-					break;
-				case 'image/png':
-					$img = @\imagecreatefrompng($path);
-					break;
-				case 'image/gif':
-					$img = @\imagecreatefromgif($path);
-					break;
-				case 'image/webp':
-					$img = @\imagecreatefromwebp($path);
-					break;
-				case 'image/bmp':
-				case 'image/x-ms-bmp':
-					$img = \function_exists('imagecreatefrombmp') ? @\imagecreatefrombmp($path) : null;
-					break;
+	private function thumbsWithImagick(string $path, string $mime): array {
+		$im = $this->readImagick($path, $mime, self::SMALL_HEIGHT, true);
+		try {
+			// Size first, rotate the small image afterwards (much cheaper).
+			$rotated = \in_array($im->getImageOrientation(), [5, 6, 7, 8], true);
+			if ($rotated) {
+				// stored sideways: its width becomes the displayed height
+				$this->fitImagick($im, self::SMALL_HEIGHT, self::SMALL_MAX_WIDTH);
+			} else {
+				$this->fitImagick($im, self::SMALL_MAX_WIDTH, self::SMALL_HEIGHT);
+			}
+			$im->autoOrient();
+			$small = $this->webpImagick($im, self::SMALL_QUALITY);
+
+			$tiny = clone $im;
+			$this->fitImagick($tiny, 400, self::TINY_HEIGHT);
+			$tinyData = $this->webpImagick($tiny, self::TINY_QUALITY);
+
+			$tiny->resizeImage(1, 1, \Imagick::FILTER_BOX, 1);
+			$c = $tiny->getImagePixelColor(0, 0)->getColor();
+			$color = (($c['r'] & 255) << 16) | (($c['g'] & 255) << 8) | ($c['b'] & 255);
+			$tiny->clear();
+			return ['s' => $small, 't' => $tinyData, 'color' => $color];
+		} finally {
+			$im->clear();
+		}
+	}
+
+	/**
+	 * @param int $hint the longest edge needed (large view), or for thumbnails
+	 *                  ($forHeight) the displayed height needed
+	 */
+	private function readImagick(string $path, string $mime, int $hint, bool $forHeight = false): \Imagick {
+		$im = new \Imagick();
+		$info = $mime === 'image/jpeg' ? @\getimagesize($path) : false;
+		if (\is_array($info) && $info[0] > 0 && $info[1] > 0) {
+			// libjpeg decodes at the smallest 1/N scale that is still at least
+			// this size in both directions, so ask for exactly what is needed.
+			[$w, $h] = $info;
+			if ($forHeight) {
+				$exif = @\exif_read_data($path, 'IFD0');
+				$sideways = \is_array($exif) && \in_array((int)($exif['Orientation'] ?? 1), [5, 6, 7, 8], true);
+				$shown = $sideways ? $w : $h;
+				$scale = $hint / $shown;
+			} else {
+				$scale = $hint / \max($w, $h);
+			}
+			if ($scale < 1) {
+				$im->setOption('jpeg:size', (int)\ceil($w * $scale) . 'x' . (int)\ceil($h * $scale));
 			}
 		}
-		$viaImagick = false;
-		if (!$img && \class_exists(\Imagick::class)) {
-			$img = $this->loadWithImagick($path, $mime, $hint);
-			$viaImagick = true;
+		// "coder:path" stops ImageMagick from guessing the format from the content.
+		$im->readImage(self::CODERS[$mime] . ':' . $path . '[0]');
+		if ($im->getImageColorspace() === \Imagick::COLORSPACE_CMYK) {
+			$im->transformImageColorspace(\Imagick::COLORSPACE_SRGB);
+		}
+		return $im;
+	}
+
+	/**
+	 * Fits the image into $maxW x $maxH (never enlarges).
+	 */
+	private function fitImagick(\Imagick $im, int $maxW, int $maxH): void {
+		$w = $im->getImageWidth();
+		$h = $im->getImageHeight();
+		$scale = \min(1, $maxW / $w, $maxH / $h);
+		if ($scale < 1) {
+			$im->resizeImage((int)\max(1, \round($w * $scale)), (int)\max(1, \round($h * $scale)), \Imagick::FILTER_TRIANGLE, 1);
+		}
+	}
+
+	private function webpImagick(\Imagick $im, int $quality): string {
+		$im->setImageFormat('webp');
+		$im->setOption('webp:method', '2');
+		$im->setImageCompressionQuality($quality);
+		$im->stripImage();
+		return $im->getImageBlob();
+	}
+
+	// ----------------------------------------------------------------- GD
+
+	private function thumbsWithGd(string $path, string $mime): array {
+		$img = $this->loadGd($path, $mime);
+		try {
+			$small = $this->scaleGd($img, self::SMALL_MAX_WIDTH, self::SMALL_HEIGHT);
+			$tiny = $this->scaleGd($small, 400, self::TINY_HEIGHT);
+			$px = \imagecreatetruecolor(1, 1);
+			\imagecopyresampled($px, $tiny, 0, 0, 0, 0, 1, 1, \imagesx($tiny), \imagesy($tiny));
+			$color = \imagecolorat($px, 0, 0) & 0xFFFFFF;
+			\imagedestroy($px);
+			$out = ['s' => $this->webpGd($small, self::SMALL_QUALITY), 't' => $this->webpGd($tiny, self::TINY_QUALITY), 'color' => $color];
+			if ($small !== $img) {
+				\imagedestroy($small);
+			}
+			if ($tiny !== $small) {
+				\imagedestroy($tiny);
+			}
+			return $out;
+		} finally {
+			\imagedestroy($img);
+		}
+	}
+
+	private function loadGd(string $path, string $mime) {
+		$info = @\getimagesize($path);
+		if (\is_array($info) && $info[0] * $info[1] > self::GD_MAX_PIXELS) {
+			throw new \RuntimeException('Image too large');
+		}
+		$img = null;
+		switch ($mime) {
+			case 'image/jpeg':
+				$img = @\imagecreatefromjpeg($path);
+				break;
+			case 'image/png':
+				$img = @\imagecreatefrompng($path);
+				break;
+			case 'image/gif':
+				$img = @\imagecreatefromgif($path);
+				break;
+			case 'image/webp':
+				$img = @\imagecreatefromwebp($path);
+				break;
+			case 'image/bmp':
+			case 'image/x-ms-bmp':
+				$img = \function_exists('imagecreatefrombmp') ? @\imagecreatefrombmp($path) : null;
+				break;
 		}
 		if (!$img) {
 			throw new \RuntimeException('Unsupported or broken image');
@@ -109,45 +218,12 @@ class ImageProcessor {
 		if (!\imageistruecolor($img)) {
 			\imagepalettetotruecolor($img);
 		}
-		if ($mime === 'image/jpeg' && !$viaImagick) {
-			$img = $this->applyOrientation($img, $path);
-		}
-		return $img;
+		return $mime === 'image/jpeg' ? $this->orientGd($img, $path) : $img;
 	}
 
-	private function loadWithImagick(string $path, string $mime, int $hint) {
-		$im = new \Imagick();
-		try {
-			if ($mime === 'image/jpeg') {
-				// Lets libjpeg decode at a reduced scale: much faster and smaller
-				$im->setOption('jpeg:size', ($hint * 2) . 'x' . ($hint * 2));
-			}
-			$im->readImage($path . '[0]');
-			if (\method_exists($im, 'autoOrient')) {
-				$im->autoOrient();
-			}
-			$w = $im->getImageWidth();
-			$h = $im->getImageHeight();
-			$scale = \min(1, ($hint * 2) / \max($w, $h));
-			if ($scale < 1) {
-				$im->thumbnailImage((int)\max(1, \round($w * $scale)), (int)\max(1, \round($h * $scale)));
-			}
-			$im->setImageFormat('png');
-			$img = @\imagecreatefromstring($im->getImageBlob());
-			return $img ?: null;
-		} catch (\ImagickException $e) {
-			return null;
-		} finally {
-			$im->clear();
-		}
-	}
-
-	private function applyOrientation($img, string $path) {
+	private function orientGd($img, string $path) {
 		$exif = @\exif_read_data($path, 'IFD0');
 		$o = \is_array($exif) ? (int)($exif['Orientation'] ?? 1) : 1;
-		if ($o <= 1 || $o > 8) {
-			return $img;
-		}
 		// imagerotate() turns counter-clockwise: 270 = 90 degrees clockwise.
 		$angle = [3 => 180, 5 => 270, 6 => 270, 7 => 90, 8 => 90][$o] ?? 0;
 		if ($angle !== 0) {
@@ -165,33 +241,39 @@ class ImageProcessor {
 		return $img;
 	}
 
-	private function scaleToHeight($img, int $height, int $maxWidth) {
-		$w = \imagesx($img);
-		$h = \imagesy($img);
-		$scale = \min(1, $height / $h, $maxWidth / $w);
+	/**
+	 * Halves with a cheap 2x2 filter while the image is much too big, then one
+	 * high-quality resample: close to the quality of a single resample, many times faster.
+	 */
+	private function scaleGd($img, int $maxW, int $maxH) {
+		$scale = \min(1, $maxW / \imagesx($img), $maxH / \imagesy($img));
 		if ($scale >= 1) {
 			return $img;
 		}
-		return $this->resample($img, (int)\max(1, \round($w * $scale)), (int)\max(1, \round($h * $scale)));
-	}
-
-	private function resample($img, int $w, int $h) {
-		$out = \imagecreatetruecolor($w, $h);
+		$tw = (int)\max(1, \round(\imagesx($img) * $scale));
+		$th = (int)\max(1, \round(\imagesy($img) * $scale));
+		$src = $img;
+		while (\imagesx($src) >= $tw * 4 && \imagesy($src) >= $th * 4) {
+			$half = \imagescale($src, \intdiv(\imagesx($src), 2), \intdiv(\imagesy($src), 2), IMG_BILINEAR_FIXED);
+			if (!$half) {
+				break;
+			}
+			if ($src !== $img) {
+				\imagedestroy($src);
+			}
+			$src = $half;
+		}
+		$out = \imagecreatetruecolor($tw, $th);
 		\imagealphablending($out, false);
 		\imagesavealpha($out, true);
-		\imagecopyresampled($out, $img, 0, 0, 0, 0, $w, $h, \imagesx($img), \imagesy($img));
+		\imagecopyresampled($out, $src, 0, 0, 0, 0, $tw, $th, \imagesx($src), \imagesy($src));
+		if ($src !== $img) {
+			\imagedestroy($src);
+		}
 		return $out;
 	}
 
-	private function averageColor($img): int {
-		$px = \imagecreatetruecolor(1, 1);
-		\imagecopyresampled($px, $img, 0, 0, 0, 0, 1, 1, \imagesx($img), \imagesy($img));
-		$c = \imagecolorat($px, 0, 0) & 0xFFFFFF;
-		\imagedestroy($px);
-		return $c;
-	}
-
-	private function encode($img, int $quality): string {
+	private function webpGd($img, int $quality): string {
 		\ob_start();
 		$ok = \imagewebp($img, null, $quality);
 		$data = (string)\ob_get_clean();
