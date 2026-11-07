@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<info>
+	<id>photos_timeline</id>
+	<name>Photos Timeline</name>
+	<summary>A fast, scrollable timeline of your photos and videos</summary>
+	<description>
+Photos Timeline shows the photos and videos of any folder, or of a set of folders you choose, as one fast timeline grouped by day, with a year and month scrubber for jumping through the years.
+
+**Features**
+
+- One timeline for the folders you select ("My timeline"), with duplicates shown once
+- A timeline of any folder, opened from a button in the Files app
+- Year and month scrubber, filters for photos or videos and for a date range
+- Full-screen view with keyboard and swipe navigation
+- Thumbnails are prepared in the background, so browsing never waits for image processing
+- View only: the app never changes, uploads or shares files
+
+Thumbnails are built by ownCloud's background jobs (cron mode recommended). The first run on a large library can take a while; `occ photos-timeline:thumbnails` can be used to run it manually.
+	</description>
+	<licence>AGPL</licence>
+	<author>Photos Timeline contributors</author>
+	<version>1.0.0</version>
+	<namespace>PhotosTimeline</namespace>
+	<category>multimedia</category>
+	<use-migrations>true</use-migrations>
+	<dependencies>
+		<owncloud min-version="11" max-version="11"/>
+		<php min-version="8.3"/>
+		<lib>gd</lib>
+		<lib>exif</lib>
+	</dependencies>
+	<navigation>
+		<order>3</order>
+		<route>photos_timeline.page.index</route>
+	</navigation>
+	<background-jobs>
+		<job>OCA\PhotosTimeline\BackgroundJob\TimelineJob</job>
+	</background-jobs>
+	<commands>
+		<command>OCA\PhotosTimeline\Command\Index</command>
+		<command>OCA\PhotosTimeline\Command\Thumbnails</command>
+		<command>OCA\PhotosTimeline\Command\Status</command>
+		<command>OCA\PhotosTimeline\Command\Purge</command>
+	</commands>
+</info>

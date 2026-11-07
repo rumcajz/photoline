@@ -1,0 +1,34 @@
+/**
+ * Photos Timeline
+ *
+ * @license AGPL-3.0
+ */
+
+#controls #photos-timeline-button {
+	float: right;
+	margin-top: 5px;
+	width: 40px;
+	height: 34px;
+	box-sizing: border-box;
+	padding: 6px 11px;
+	background-color: transparent;
+	border: 1px solid transparent;
+}
+
+#controls #photos-timeline-button img {
+	width: 16px;
+	height: 16px;
+	opacity: .7;
+	vertical-align: middle;
+}
+
+#controls #photos-timeline-button:hover,
+#controls #photos-timeline-button:focus {
+	background-color: rgba(255, 255, 255, .9);
+	border: 1px solid rgba(200, 200, 200, .9);
+}
+
+#controls #photos-timeline-button:hover img,
+#controls #photos-timeline-button:focus img {
+	opacity: 1;
+}
