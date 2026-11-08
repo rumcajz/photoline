@@ -124,29 +124,26 @@ Runs unit checks, verifies that no route is public or skips the CSRF check, and
 with two or more user ids checks that no user can get another user's thumbnails,
 previews, timeline items or folders. It only reads data.
 
-## Publishing to the ownCloud Marketplace
+The `tests/` folder is in the source repository only, not in the release package.
 
-Since ownCloud 11, apps must be code-signed; unsigned apps are blocked when they
-are installed or enabled from the Marketplace. To publish:
+## Building from source
 
-1. Request a code-signing certificate for the app id `photos_timeline` in the
-   `owncloud/developer-certificates` repository (issue form with your CSR and
-   the source repository).
-2. Build and sign the package (needs `ocsign` on the PATH):
+```
+./make-package.sh
+```
 
-   ```
-   ./make-package.sh photos_timeline.key photos_timeline.crt intermediate.crt
-   ```
+builds `build/package.tar.gz` with only the files the app needs at run time
+(`appinfo`, `css`, `img`, `js`, `lib`, `templates` and the licence, readme and
+changelog). This package is **unsigned**: ownCloud 11 blocks unsigned apps
+unless an admin excludes the app from the integrity check, so use it only on a
+test server.
 
-   It copies only the run-time files (`appinfo`, `css`, `img`, `js`, `lib`,
-   `templates` and the licence, readme and changelog) to
-   `build/photos_timeline/`, signs that copy and writes `build/package.tar.gz`.
-   Without arguments it builds an unsigned package for testing. If the key is
-   passphrase-protected, it asks for the passphrase and decrypts the key into a
-   temporary file only for the signing step.
-3. Open a pull request to `owncloud/marketplace` adding
-   `apps/photos_timeline/releases/<version>/package.tar.gz` (Git LFS, signed
-   commits with a DCO `Signed-off-by` line).
+Official releases are signed by the author with an ownCloud code-signing
+certificate for `photos_timeline`; `occ integrity:check-app photos_timeline`
+reports no errors for an unmodified release. How releases are made:
+[RELEASING.md](RELEASING.md).
+
+## Screenshots
 
 The screenshots in `screenshots/` (referenced from `appinfo/info.xml`) were
 taken on a test instance with a demo account and stock photos.
