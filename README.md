@@ -148,6 +148,10 @@ are installed or enabled from the Marketplace. To publish:
 The screenshots in `screenshots/` (referenced from `appinfo/info.xml`) show
 generated demo images only.
 
+## Reporting security problems
+
+Please report them privately, not as a public issue: see [SECURITY.md](SECURITY.md).
+
 ## License
 
-AGPL-3.0, see `COPYING`.
+AGPL-3.0, see `COPYING`. Author: Radoslaw Cichocki.

@@ -19,7 +19,7 @@ PhotoLine shows the photos and videos of any folder, or of a set of folders you 
 Thumbnails are built by ownCloud's background jobs (cron mode recommended). The first run on a large library can take a while; `occ photoline:thumbnails` can be used to run it manually.
 	</description>
 	<licence>AGPL</licence>
-	<author>PhotoLine contributors</author>
+	<author>Radoslaw Cichocki</author>
 	<version>1.1.8</version>
 	<namespace>PhotosTimeline</namespace>
 	<category>multimedia</category>
