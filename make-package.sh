@@ -21,7 +21,19 @@ done
 find "$OUT" -name '.DS_Store' -delete
 
 if [ $# -ge 2 ]; then
-	ocsign --path "$OUT" --key "$1" --cert "$2" ${3:+--chain "$3"}
+	KEY=$1
+	if grep -q 'ENCRYPTED' "$KEY"; then
+		# ocsign reads only unencrypted keys: decrypt to a private temp file for
+		# the signing step only (openssl asks for the passphrase), then remove it.
+		TMPKEY=$(mktemp)
+		trap 'rm -f "$TMPKEY"' EXIT INT TERM
+		chmod 600 "$TMPKEY"
+		echo "Passphrase for the signing key:"
+		openssl pkey -in "$KEY" -out "$TMPKEY"
+		KEY=$TMPKEY
+	fi
+	ocsign --path "$OUT" --key "$KEY" --cert "$2" ${3:+--chain "$3"}
+	if [ -n "${TMPKEY:-}" ]; then rm -f "$TMPKEY"; fi
 	echo "signed: $OUT/appinfo/signature.json"
 else
 	echo "NOT signed (pass KEY CERT [CHAIN] to sign)"

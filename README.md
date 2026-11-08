@@ -141,7 +141,9 @@ are installed or enabled from the Marketplace. To publish:
    It copies only the run-time files (`appinfo`, `css`, `img`, `js`, `lib`,
    `templates` and the licence, readme and changelog) to
    `build/photos_timeline/`, signs that copy and writes `build/package.tar.gz`.
-   Without arguments it builds an unsigned package for testing.
+   Without arguments it builds an unsigned package for testing. If the key is
+   passphrase-protected, it asks for the passphrase and decrypts the key into a
+   temporary file only for the signing step.
 3. Open a pull request to `owncloud/marketplace` adding
    `apps/photos_timeline/releases/<version>/package.tar.gz` (Git LFS, signed
    commits with a DCO `Signed-off-by` line).
