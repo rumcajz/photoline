@@ -23,9 +23,18 @@ Thumbnails are built by ownCloud's background jobs (cron mode recommended). The 
 	<version>1.1.8</version>
 	<namespace>PhotosTimeline</namespace>
 	<category>multimedia</category>
+	<website>https://github.com/rumcajz/photoline</website>
+	<bugs>https://github.com/rumcajz/photoline/issues</bugs>
+	<repository type="git">https://github.com/rumcajz/photoline.git</repository>
+	<documentation>
+		<user>https://github.com/rumcajz/photoline#readme</user>
+		<admin>https://github.com/rumcajz/photoline#requirements</admin>
+	</documentation>
+	<screenshot small-thumbnail="https://raw.githubusercontent.com/rumcajz/photoline/main/screenshots/timeline-small.png">https://raw.githubusercontent.com/rumcajz/photoline/main/screenshots/timeline.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/rumcajz/photoline/main/screenshots/viewer.png</screenshot>
 	<use-migrations>true</use-migrations>
 	<dependencies>
-		<owncloud min-version="11" max-version="11"/>
+		<owncloud min-version="11.0" max-version="11"/>
 		<php min-version="8.3"/>
 		<lib>gd</lib>
 		<lib>exif</lib>

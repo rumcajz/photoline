@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Marketplace metadata in `appinfo/info.xml`: website, issue tracker,
+  repository, documentation links and screenshots (generated demo images).
+- `make-package.sh` builds the Marketplace package (run-time files only),
+  signed with `ocsign` when a key and certificate are given.
+
 ## 1.1.8
 
 - Viewer: the arrow keys and Escape keep working after switching to another

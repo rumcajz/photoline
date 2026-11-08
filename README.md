@@ -3,6 +3,8 @@
 A fast, view-only timeline of your photos and videos, grouped by day, with a
 year and month scrubber for jumping through the years.
 
+![PhotoLine timeline](screenshots/timeline.png)
+
 - **My timeline**: one timeline made from the folders you choose (by default
   `CameraUpload`). When the same photo is in several of them (same name and
   size), it is shown once, from the folder highest in your list.
@@ -129,14 +131,22 @@ are installed or enabled from the Marketplace. To publish:
 1. Request a code-signing certificate for the app id `photos_timeline` in the
    `owncloud/developer-certificates` repository (issue form with your CSR and
    the source repository).
-2. Sign the release with `ocsign` and build `package.tar.gz` (the app folder
-   without `tests/`, `_ref/` and `.git`).
+2. Build and sign the package (needs `ocsign` on the PATH):
+
+   ```
+   ./make-package.sh photos_timeline.key photos_timeline-leaf.crt intermediate.crt
+   ```
+
+   It copies only the run-time files (`appinfo`, `css`, `img`, `js`, `lib`,
+   `templates` and the licence, readme and changelog) to
+   `build/photos_timeline/`, signs that copy and writes `build/package.tar.gz`.
+   Without arguments it builds an unsigned package for testing.
 3. Open a pull request to `owncloud/marketplace` adding
    `apps/photos_timeline/releases/<version>/package.tar.gz` (Git LFS, signed
    commits with a DCO `Signed-off-by` line).
 
-Before that, add `<website>`, `<bugs>` and `<repository>` to `appinfo/info.xml`
-and a screenshot.
+The screenshots in `screenshots/` (referenced from `appinfo/info.xml`) show
+generated demo images only.
 
 ## License
 
