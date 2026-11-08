@@ -135,7 +135,7 @@ are installed or enabled from the Marketplace. To publish:
 2. Build and sign the package (needs `ocsign` on the PATH):
 
    ```
-   ./make-package.sh photos_timeline.key photos_timeline-leaf.crt intermediate.crt
+   ./make-package.sh photos_timeline.key photos_timeline.crt intermediate.crt
    ```
 
    It copies only the run-time files (`appinfo`, `css`, `img`, `js`, `lib`,
