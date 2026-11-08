@@ -145,8 +145,11 @@ are installed or enabled from the Marketplace. To publish:
    `apps/photos_timeline/releases/<version>/package.tar.gz` (Git LFS, signed
    commits with a DCO `Signed-off-by` line).
 
-The screenshots in `screenshots/` (referenced from `appinfo/info.xml`) show
-generated demo images only.
+The screenshots in `screenshots/` (referenced from `appinfo/info.xml`) were
+taken on a test instance with a demo account and stock photos.
+
+Demo photos in the screenshots: [Unsplash](https://unsplash.com), used under
+the [Unsplash License](https://unsplash.com/license).
 
 ## Reporting security problems
 

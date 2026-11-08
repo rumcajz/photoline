@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Marketplace metadata in `appinfo/info.xml`: website, issue tracker,
-  repository, documentation links and screenshots (generated demo images).
+  repository, documentation links and screenshots (demo account, Unsplash photos).
 - Author set to Radoslaw Cichocki; SECURITY.md explains private vulnerability reports.
 - `make-package.sh` builds the Marketplace package (run-time files only),
   signed with `ocsign` when a key and certificate are given.
