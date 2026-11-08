@@ -1,6 +1,6 @@
 <?php
 /**
- * PhotoLine
+ * YearRoll
  *
  * @license AGPL-3.0
  */
@@ -53,19 +53,19 @@ class Purge extends Command {
 	}
 
 	protected function configure() {
-		$this->setName('photoline:purge')
-			->setAliases(['photos-timeline:purge'])
-			->setDescription('Remove all PhotoLine data (index table, thumbnails, settings, background job) and disable the app. Files are not touched.')
+		$this->setName('yearroll:purge')
+			->setAliases(['photoline:purge', 'photos-timeline:purge'])
+			->setDescription('Remove all YearRoll data (index table, thumbnails, settings, background job) and disable the app. Files are not touched.')
 			->addOption('confirm', null, InputOption::VALUE_NONE, 'Required: confirms the purge');
 	}
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		if (!$input->getOption('confirm')) {
-			$output->writeln('Nothing done. Run again with --confirm to remove all PhotoLine data and disable the app.');
+			$output->writeln('Nothing done. Run again with --confirm to remove all YearRoll data and disable the app.');
 			return 1;
 		}
 		if (!$this->thumbs->acquireLock()) {
-			$output->writeln('A PhotoLine run is busy. Try again in a few minutes.');
+			$output->writeln('A YearRoll run is busy. Try again in a few minutes.');
 			return 1;
 		}
 		try {

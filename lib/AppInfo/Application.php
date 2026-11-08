@@ -1,6 +1,6 @@
 <?php
 /**
- * PhotoLine
+ * YearRoll
  *
  * @license AGPL-3.0
  */
@@ -53,7 +53,7 @@ class Application extends App {
 	}
 
 	/**
-	 * Adds the "PhotoLine" button to the Files app (next to Gallery's).
+	 * Adds the "YearRoll" button to the Files app (next to Gallery's).
 	 * The scripts are only loaded on the Files page itself.
 	 */
 	public function registerFilesIntegration(): void {

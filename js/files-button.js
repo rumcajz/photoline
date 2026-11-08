@@ -1,9 +1,9 @@
 /**
- * PhotoLine
+ * YearRoll
  *
  * @license AGPL-3.0
  *
- * Adds a "PhotoLine" button to the Files app, next to Gallery's, which
+ * Adds a "YearRoll" button to the Files app, next to Gallery's, which
  * opens the timeline of the folder currently shown.
  */
 (function () {
@@ -34,7 +34,7 @@
 		var button = document.createElement('a');
 		button.id = 'photos-timeline-button';
 		button.className = 'button view-switcher';
-		var label = window.t ? window.t('photos_timeline', 'Open this folder in PhotoLine') : 'Open this folder in PhotoLine';
+		var label = window.t ? window.t('photos_timeline', 'Open this folder in YearRoll') : 'Open this folder in YearRoll';
 		button.title = label;
 		button.setAttribute('aria-label', label);
 		var img = document.createElement('img');

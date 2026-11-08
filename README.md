@@ -1,9 +1,9 @@
-# PhotoLine for ownCloud
+# YearRoll for ownCloud
 
 A fast, view-only timeline of your photos and videos, grouped by day, with a
 year and month scrubber for jumping through the years.
 
-![PhotoLine timeline](screenshots/timeline.png)
+![YearRoll timeline](screenshots/timeline.png)
 
 - **My timeline**: one timeline made from the folders you choose (by default
   `CameraUpload`). When the same photo is in several of them (same name and
@@ -16,7 +16,8 @@ year and month scrubber for jumping through the years.
 - **View only**: the app never uploads, changes, moves, deletes or shares files.
 
 The app id is `photos_timeline` (app folder, database table, cache folder). The
-occ commands are `occ photoline:…`; the earlier `photos-timeline:…` names still work.
+occ commands are `occ yearroll:…`; the earlier `photoline:…` and `photos-timeline:…`
+names still work.
 
 ## Why it is fast
 
@@ -84,16 +85,16 @@ App settings (`occ config:app:set photos_timeline <key> --value=<n>`):
 Commands:
 
 ```
-occ photoline:index [user...] [--force]
-occ photoline:thumbnails [user...] [--all-folders] [--time=SECONDS] [--retry-failed]
-occ photoline:status
-occ photoline:purge --confirm
+occ yearroll:index [user...] [--force]
+occ yearroll:thumbnails [user...] [--all-folders] [--time=SECONDS] [--retry-failed]
+occ yearroll:status
+occ yearroll:purge --confirm
 ```
 
 For a large library, run the first thumbnail pass by hand, at low priority:
 
 ```
-nice -n 19 occ photoline:thumbnails
+nice -n 19 occ yearroll:thumbnails
 ```
 
 Folders containing a `.nomedia` or `.noimage` file are left out, as in Gallery.
@@ -105,7 +106,7 @@ Folders containing a `.nomedia` or `.noimage` file are left out, as in Gallery.
 - **Removing everything**:
 
   ```
-  occ photoline:purge --confirm
+  occ yearroll:purge --confirm
   ```
 
   deletes the thumbnail cache, drops the index table, deletes users' and the

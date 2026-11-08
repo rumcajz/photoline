@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <info>
 	<id>photos_timeline</id>
-	<name>PhotoLine</name>
+	<name>YearRoll</name>
 	<summary>A fast, scrollable timeline of your photos and videos</summary>
 	<description>
-PhotoLine shows the photos and videos of any folder, or of a set of folders you choose, as one fast timeline grouped by day, with a year and month scrubber for jumping through the years.
+YearRoll shows the photos and videos of any folder, or of a set of folders you choose, as one fast timeline grouped by day, with a year and month scrubber for jumping through the years.
 
 **Features**
 
@@ -16,22 +16,22 @@ PhotoLine shows the photos and videos of any folder, or of a set of folders you 
 - Video thumbnails made with ffmpeg when the server has it, otherwise from the first frame shown when a video is played
 - View only: the app never changes, uploads or shares files
 
-Thumbnails are built by ownCloud's background jobs (cron mode recommended). The first run on a large library can take a while; `occ photoline:thumbnails` can be used to run it manually.
+Thumbnails are built by ownCloud's background jobs (cron mode recommended). The first run on a large library can take a while; `occ yearroll:thumbnails` can be used to run it manually.
 	</description>
 	<licence>AGPL</licence>
 	<author>Radoslaw Cichocki</author>
-	<version>1.1.8</version>
+	<version>1.2.0</version>
 	<namespace>PhotosTimeline</namespace>
 	<category>multimedia</category>
-	<website>https://github.com/rumcajz/photoline</website>
-	<bugs>https://github.com/rumcajz/photoline/issues</bugs>
-	<repository type="git">https://github.com/rumcajz/photoline.git</repository>
+	<website>https://github.com/rumcajz/yearroll</website>
+	<bugs>https://github.com/rumcajz/yearroll/issues</bugs>
+	<repository type="git">https://github.com/rumcajz/yearroll.git</repository>
 	<documentation>
-		<user>https://github.com/rumcajz/photoline#readme</user>
-		<admin>https://github.com/rumcajz/photoline#requirements</admin>
+		<user>https://github.com/rumcajz/yearroll#readme</user>
+		<admin>https://github.com/rumcajz/yearroll#requirements</admin>
 	</documentation>
-	<screenshot small-thumbnail="https://raw.githubusercontent.com/rumcajz/photoline/main/screenshots/timeline-small.png">https://raw.githubusercontent.com/rumcajz/photoline/main/screenshots/timeline.png</screenshot>
-	<screenshot>https://raw.githubusercontent.com/rumcajz/photoline/main/screenshots/viewer.png</screenshot>
+	<screenshot small-thumbnail="https://raw.githubusercontent.com/rumcajz/yearroll/main/screenshots/timeline-small.png">https://raw.githubusercontent.com/rumcajz/yearroll/main/screenshots/timeline.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/rumcajz/yearroll/main/screenshots/viewer.png</screenshot>
 	<use-migrations>true</use-migrations>
 	<dependencies>
 		<owncloud min-version="11.0" max-version="11"/>
@@ -40,7 +40,7 @@ Thumbnails are built by ownCloud's background jobs (cron mode recommended). The 
 		<lib>exif</lib>
 	</dependencies>
 	<navigation>
-		<name>PhotoLine</name>
+		<name>YearRoll</name>
 		<order>3</order>
 		<route>photos_timeline.page.index</route>
 	</navigation>

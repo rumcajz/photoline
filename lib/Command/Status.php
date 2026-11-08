@@ -1,6 +1,6 @@
 <?php
 /**
- * PhotoLine
+ * YearRoll
  *
  * @license AGPL-3.0
  */
@@ -35,8 +35,8 @@ class Status extends Command {
 	}
 
 	protected function configure() {
-		$this->setName('photoline:status')
-			->setAliases(['photos-timeline:status'])
+		$this->setName('yearroll:status')
+			->setAliases(['photoline:status', 'photos-timeline:status'])
 			->setDescription('Show index and thumbnail counts per user');
 	}
 

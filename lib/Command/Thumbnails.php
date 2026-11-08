@@ -1,6 +1,6 @@
 <?php
 /**
- * PhotoLine
+ * YearRoll
  *
  * @license AGPL-3.0
  */
@@ -32,8 +32,8 @@ class Thumbnails extends Command {
 	}
 
 	protected function configure() {
-		$this->setName('photoline:thumbnails')
-			->setAliases(['photos-timeline:thumbnails'])
+		$this->setName('yearroll:thumbnails')
+			->setAliases(['photoline:thumbnails', 'photos-timeline:thumbnails'])
 			->setDescription('Make missing thumbnails now (by default for each user\'s selected folders)')
 			->addArgument('user', InputArgument::OPTIONAL | InputArgument::IS_ARRAY, 'User ids (default: all users)')
 			->addOption('all-folders', null, InputOption::VALUE_NONE, 'All indexed photos, not only the selected folders')
@@ -43,7 +43,7 @@ class Thumbnails extends Command {
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		if (!$this->thumbs->acquireLock()) {
-			$output->writeln('<error>Another PhotoLine run is busy, try again later.</error>');
+			$output->writeln('<error>Another YearRoll run is busy, try again later.</error>');
 			return 1;
 		}
 		try {

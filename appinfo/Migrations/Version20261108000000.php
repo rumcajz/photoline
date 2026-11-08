@@ -1,6 +1,6 @@
 <?php
 /**
- * PhotoLine
+ * YearRoll
  *
  * @license AGPL-3.0
  */
@@ -31,6 +31,6 @@ class Version20261108000000 implements ISimpleMigration {
 			->where($qb->expr()->eq('kind', $qb->createNamedParameter(2)))
 			->andWhere($qb->expr()->eq('thumb_state', $qb->createNamedParameter(2)));
 		$n = $qb->execute();
-		$out->info("PhotoLine: $n videos queued for thumbnails");
+		$out->info("YearRoll: $n videos queued for thumbnails");
 	}
 }
